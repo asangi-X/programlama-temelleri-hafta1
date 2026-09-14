@@ -1,0 +1,669 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Programlama Temelleri — 1. Hafta</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,500&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --paper:#f6f7f5; --surface:#ffffff; --ink:#1c2321; --ink-muted:#5c6660;
+    --rule:#dee3df; --accent:#245a48; --accent-strong:#163d30; --accent-soft:#e4efe9;
+    --warn:#b23a2e; --warn-soft:#f5e4e1; --locked:#97a39c; --locked-soft:#edf0ee;
+    --late:#9a6b1f; --late-soft:#f3e8d3;
+    --shadow: 0 1px 2px rgba(28,35,33,0.06), 0 8px 24px rgba(28,35,33,0.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --paper:#14181a; --surface:#1b201f; --ink:#e9edea; --ink-muted:#9aa6a0;
+      --rule:#2b332f; --accent:#5db494; --accent-strong:#8fd0b6; --accent-soft:#1e332b;
+      --warn:#e2857a; --warn-soft:#3a2320; --locked:#6b776f; --locked-soft:#232925;
+      --late:#d9a54a; --late-soft:#3a2f18;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+    }
+  }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--paper); color:var(--ink); font-family:'IBM Plex Sans',system-ui,sans-serif; font-size:15.5px; line-height:1.55; }
+  h1,h2,h3{ font-family:'Newsreader',Georgia,serif; font-weight:600; margin:0; color:var(--ink); }
+  .mono{ font-family:'IBM Plex Mono',monospace; }
+  button{ font-family:inherit; cursor:pointer; }
+  input,textarea,select{ font-family:inherit; font-size:14.5px; }
+  [hidden]{ display:none !important; }
+
+  .topbar{ display:flex; align-items:center; justify-content:space-between; padding:14px 24px; border-bottom:1px solid var(--rule); background:var(--surface); }
+  .topbar .brand{ font-family:'Newsreader',serif; font-weight:600; font-size:17px; }
+  .topbar .brand span{ color:var(--accent-strong); }
+  .btn{ border:1px solid var(--rule); background:var(--surface); color:var(--ink); border-radius:7px; padding:8px 14px; font-size:13.5px; font-weight:500; }
+  .btn:hover{ border-color:var(--accent); color:var(--accent-strong); }
+  .btn.primary{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .btn.primary:hover{ background:var(--accent-strong); border-color:var(--accent-strong); color:#fff; }
+  .btn.ghost{ border-color:transparent; background:transparent; }
+  .btn.small{ padding:5px 10px; font-size:12.5px; }
+  .btn:disabled{ opacity:0.4; cursor:default; }
+
+  .login-wrap{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .login-card{ width:100%; max-width:400px; background:var(--surface); border:1px solid var(--rule); border-radius:14px; padding:32px 30px; box-shadow:var(--shadow); }
+  .login-card .eyebrow{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--accent); }
+  .login-card h1{ font-size:23px; margin:8px 0 22px; }
+  .tabs{ display:flex; gap:4px; background:var(--paper); border:1px solid var(--rule); border-radius:9px; padding:4px; margin-bottom:20px; }
+  .tabs button{ flex:1; border:none; background:transparent; border-radius:6px; padding:8px 0; font-size:13.5px; font-weight:500; color:var(--ink-muted); }
+  .tabs button.active{ background:var(--surface); color:var(--accent-strong); box-shadow:var(--shadow); }
+  .field{ margin-bottom:14px; }
+  .field label{ display:block; font-size:12.5px; color:var(--ink-muted); margin-bottom:5px; }
+  .field input{ width:100%; padding:9px 11px; border:1px solid var(--rule); border-radius:7px; background:var(--paper); color:var(--ink); }
+  .login-err{ font-size:13px; color:var(--warn); margin-bottom:10px; min-height:18px; }
+  .demo-hint{ margin-top:18px; font-size:12px; color:var(--ink-muted); background:var(--paper); border:1px dashed var(--rule); border-radius:8px; padding:10px 12px; }
+
+  .shell{ display:grid; grid-template-columns:220px minmax(0,1fr) 240px; min-height:calc(100vh - 57px); }
+  .side{ border-right:1px solid var(--rule); padding:22px 14px; background:var(--surface); }
+  .side .side-label{ font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.07em; text-transform:uppercase; color:var(--ink-muted); margin:0 8px 10px; }
+  .week-row{ display:flex; align-items:center; gap:9px; padding:9px 10px; border-radius:8px; font-size:14px; margin-bottom:3px; color:var(--ink-muted); }
+  .week-row.active{ background:var(--accent-soft); color:var(--accent-strong); font-weight:600; }
+  .week-row.locked{ color:var(--locked); }
+  .dot{ width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+  .dot.now{ background:var(--accent-strong); }
+  .dot.locked{ background:var(--locked); }
+
+  main.center{ padding:30px 40px 100px; min-width:0; }
+  .progress-strip{ display:flex; align-items:center; gap:16px; margin-bottom:24px; padding:14px 18px; background:var(--surface); border:1px solid var(--rule); border-radius:10px; box-shadow:var(--shadow); }
+  .progress-strip .badge{ width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+  .badge.ok{ background:var(--accent-soft); color:var(--accent-strong); }
+  .badge.warn{ background:var(--warn-soft); color:var(--warn); }
+  .badge.locked{ background:var(--locked-soft); color:var(--locked); }
+  .badge.late{ background:var(--late-soft); color:var(--late); }
+  .progress-strip .txt b{ display:block; font-size:14px; }
+  .progress-strip .txt span{ font-size:12.5px; color:var(--ink-muted); }
+  .bar-track{ flex:1; height:7px; border-radius:99px; background:var(--rule); overflow:hidden; }
+  .bar-fill{ height:100%; background:var(--accent); border-radius:99px; transition:width .4s ease; }
+
+  .section-tabs{ display:flex; gap:4px; background:var(--surface); border:1px solid var(--rule); border-radius:9px; padding:4px; margin-bottom:26px; width:fit-content; }
+  .section-tabs button{ border:none; background:transparent; border-radius:6px; padding:8px 16px; font-size:13.5px; font-weight:500; color:var(--ink-muted); }
+  .section-tabs button.active{ background:var(--accent-soft); color:var(--accent-strong); }
+
+  .reader{ background:var(--surface); border:1px solid var(--rule); border-radius:12px; padding:30px 34px; box-shadow:var(--shadow); }
+  .reader-dots{ display:flex; align-items:center; gap:8px; margin-bottom:22px; }
+  .reader-dots .rd{ width:26px; height:5px; border-radius:99px; background:var(--rule); }
+  .reader-dots .rd.read{ background:var(--accent); }
+  .reader-dots .rd.current{ background:var(--accent-strong); }
+  .reader-dots .rd-label{ margin-left:8px; font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--ink-muted); }
+  .reader h3{ font-size:19px; margin-bottom:14px; }
+  .reader .body{ color:var(--ink); font-size:15.5px; max-width:68ch; line-height:1.7; margin-bottom:30px; white-space:pre-wrap; }
+  .reader-nav{ display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--rule); padding-top:20px; }
+
+  .ex{ margin-bottom:18px; padding:18px 20px; background:var(--surface); border:1px solid var(--rule); border-radius:10px; box-shadow:var(--shadow); }
+  .ex .ex-kicker{ font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.06em; text-transform:uppercase; margin-bottom:8px; }
+  .ex .ex-kicker.closed{ color:var(--accent-strong); }
+  .ex .ex-kicker.open{ color:var(--late); }
+  .ex p.q{ margin:0 0 12px; font-size:14.5px; white-space:pre-wrap; }
+  .opts{ display:flex; flex-direction:column; gap:7px; margin-bottom:10px; }
+  .opts label{ display:flex; align-items:center; gap:8px; font-size:14px; padding:7px 10px; border:1px solid var(--rule); border-radius:7px; background:var(--paper); }
+  .opts label:has(input:checked){ border-color:var(--accent); background:var(--accent-soft); }
+  .ex input[type="text"], .ex textarea{ width:100%; padding:9px 11px; border:1px solid var(--rule); border-radius:7px; background:var(--paper); color:var(--ink); }
+  .ex textarea{ min-height:78px; resize:vertical; }
+  .ex-result{ margin-top:10px; font-size:13px; padding:8px 11px; border-radius:7px; }
+  .ex-result.correct{ background:var(--accent-soft); color:var(--accent-strong); }
+  .ex-result.wrong{ background:var(--warn-soft); color:var(--warn); }
+  .ex-result.pending{ background:var(--late-soft); color:var(--late); }
+  .ex-result.reviewed-ok{ background:var(--accent-soft); color:var(--accent-strong); }
+  .ex-result.reviewed-bad{ background:var(--warn-soft); color:var(--warn); }
+  .ex-foot{ display:flex; justify-content:flex-end; gap:8px; margin-top:6px; }
+
+  .side.right{ border-right:none; border-left:1px solid var(--rule); }
+  .bubble{ background:var(--surface); border:1px solid var(--rule); border-radius:8px; padding:10px 12px; font-size:12.5px; color:var(--ink-muted); margin-bottom:10px; }
+  .bubble b{ display:block; color:var(--ink); font-size:13px; margin-bottom:3px; }
+
+  .teacher-wrap{ padding:28px 40px 80px; max-width:1080px; margin:0 auto; }
+  .t-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:22px; flex-wrap:wrap; gap:12px; }
+  .t-config{ display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--rule); border-radius:9px; padding:10px 14px; margin-bottom:16px; font-size:13.5px; flex-wrap:wrap; }
+  table.roster{ width:100%; border-collapse:collapse; background:var(--surface); border:1px solid var(--rule); border-radius:10px; overflow:hidden; }
+  table.roster th{ text-align:left; font-size:11.5px; letter-spacing:0.05em; text-transform:uppercase; color:var(--ink-muted); font-weight:500; padding:11px 14px; border-bottom:1px solid var(--rule); background:var(--paper); }
+  table.roster td{ padding:12px 14px; border-bottom:1px solid var(--rule); font-size:14px; vertical-align:middle; }
+  table.roster tr:last-child td{ border-bottom:none; }
+  table.roster tr.clickable:hover{ background:var(--paper); cursor:pointer; }
+  .status-pill{ display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:500; padding:4px 10px; border-radius:99px; }
+  .status-pill.ok{ background:var(--accent-soft); color:var(--accent-strong); }
+  .status-pill.warn{ background:var(--warn-soft); color:var(--warn); }
+  .status-pill.late{ background:var(--late-soft); color:var(--late); }
+  .status-pill.progress{ background:var(--locked-soft); color:var(--ink-muted); }
+
+  .drawer-backdrop{ position:fixed; inset:0; background:rgba(20,24,22,0.35); display:flex; justify-content:flex-end; z-index:20; }
+  .drawer{ width:min(520px,92vw); background:var(--surface); height:100%; overflow-y:auto; padding:26px 28px 60px; box-shadow:-8px 0 24px rgba(0,0,0,0.12); }
+  .drawer h2{ font-size:19px; margin-bottom:4px; }
+  .drawer .sub{ color:var(--ink-muted); font-size:13px; margin-bottom:20px; }
+  .drawer-close{ float:right; }
+  .review-card{ border:1px solid var(--rule); border-radius:9px; padding:14px 16px; margin-bottom:14px; }
+  .review-card .qtxt{ font-size:13.5px; margin-bottom:6px; color:var(--ink-muted); white-space:pre-wrap; }
+  .review-card .ans{ font-size:14px; background:var(--paper); border-radius:6px; padding:8px 10px; margin-bottom:10px; white-space:pre-wrap; }
+  .review-actions{ display:flex; gap:8px; }
+
+  .modal-backdrop{ position:fixed; inset:0; background:rgba(20,24,22,0.35); display:flex; align-items:center; justify-content:center; z-index:30; }
+  .modal{ width:min(360px,90vw); background:var(--surface); border-radius:12px; padding:24px; box-shadow:var(--shadow); }
+  .modal h3{ font-size:16px; margin-bottom:14px; }
+  .modal input{ width:100%; margin-bottom:10px; padding:9px 11px; border:1px solid var(--rule); border-radius:7px; background:var(--paper); color:var(--ink); }
+
+  .toast{ position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--ink); color:var(--paper); padding:9px 16px; border-radius:8px; font-size:13px; z-index:40; opacity:0; transition:opacity .3s; pointer-events:none; }
+  .toast.show{ opacity:1; }
+
+  @media (max-width:860px){
+    .shell{ grid-template-columns:1fr; }
+    .side{ border-right:none; border-bottom:1px solid var(--rule); }
+    .side.right{ border-left:none; }
+    main.center{ padding:22px 18px 80px; }
+    .teacher-wrap{ padding:22px 16px 60px; }
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" class="toast"></div>
+
+<script>
+/* ====== SUPABASE BAĞLANTISI — Sinem burayı doldurur ====== */
+var SUPABASE_URL = "https://uxtctgdkekvjelflnnvz.supabase.co";
+var SUPABASE_ANON_KEY = "sb_publishable_8RNIOGyIVOXaFPoKbtUvSQ_bu-5BHZ1";
+/* ========================================================= */
+
+var TEACHER_PASS = "kodasistan26"; // öğretmen panel şifresi - istediğin zaman değiştirebilirsin
+
+(function(){
+  var CLOSED_THRESHOLD = 0.5;
+
+  var QUESTIONS = {
+    q1: { type:"mc", closed:true, text:"Aşağıdakilerden hangisi bir algoritmanın kabul edilebilme kriterlerinden (üç temel özelliğinden) biri DEĞİLDİR?",
+      opts:["Sonluluk","Belirlilik (kesinlik)","Etkinlik","Yaratıcılık"], correct:"Yaratıcılık" },
+    q2: { type:"tf", closed:true, text:"GİÇ analizinde 'İşlem' basamağı, girdiler üzerinde yapılan matematiksel veya mantıksal adımları ifade eder.",
+      correct:"Doğru" },
+    q3: { type:"fill", closed:true, text:"Bir algoritmanın hiçbir zaman DUR adımına ulaşamayıp sürekli tekrar etmesi durumuna ______ denir.",
+      accepted:["sonsuz döngü","sonsuz dongu"] },
+    q4: { type:"giç", closed:false, text:"Bir kütüphanenin otomatik kitap ödünç-verme kioskunu düşünün (öğrenci kartını okutuyor, kitabı okutuyor, sistem ödünç kaydı oluşturuyor). Bu sistem için Girdi / İşlem / Çıktı yazınız." },
+    q5: { type:"free", closed:false, text:"Aşağıdaki sözde kodda bir mantık hatası var:\n1. BAŞLA\n2. sayac = 0 belirle\n3. EĞER sayac < 5 İSE sayac'ı 1 artır ve 3. adıma git\n4. Ekrana sayac değerini yazdır\n5. DUR\nBu algoritmanın neden asla 4. adıma ulaşamayacağını kendi cümlelerinizle açıklayınız." }
+  };
+  var TOPICS = [
+    { id:"p1", title:"1. Algoritma Nedir?", body:"Bir algoritma, belirli bir problemi çözmek için tasarlanmış, açık ve sıralı adımlardan oluşan mantıksal bir süreçtir. Kabul edilebilir sayılması için üç şartı taşımalıdır: sonlu adımda bitmeli (sonluluk), her adımı tek bir anlama gelecek netlikte olmalı (belirlilik) ve uygulanabilir/izlenebilir işlemlerden oluşmalıdır (etkinlik). Bu fikrin kökleri, 9. yüzyılda Bağdat'ta yaşamış El-Harezmi'nin problemleri adım adım çözme yöntemine kadar uzanır — 'algoritma' kelimesi de onun adından gelir." },
+    { id:"p2", title:"2. Problem Analizi ve GİÇ", body:"Bir problemi çözmeye başlamadan önce, sistemin dışarıdan hangi verileri alacağını (Girdi), bu veriler üzerinde hangi işlemleri yapacağını (İşlem) ve sonunda neyi üreteceğini (Çıktı) netleştirmek gerekir. Buna GİÇ analizi denir. Karmaşık bir problem tek parça değil, GİÇ mantığıyla küçük bileşenlere ayrılarak tasarlanır — bu da hem hata riskini azaltır hem de test etmeyi kolaylaştırır." },
+    { id:"p3", title:"3. Sözde Kod ve Elle Çalıştırma (Dry Run)", body:"Sözde kod, bir algoritmayı herhangi bir programlama dilinin katı kurallarına bağlı kalmadan, günlük dile yakın ve adım adım ifade etmenin yoludur. Kodlamaya geçmeden önce bu sözde kodun kağıt üzerinde elle çalıştırılması (dry run) sayesinde, değişkenlerin aldığı değerler adım adım izlenerek mantık hataları (örneğin hiç bitmeyen bir döngü) erken aşamada fark edilebilir." }
+  ];
+
+  var sb = (SUPABASE_URL.indexOf("BURAYA") === -1) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+  var state = { view:"login", loginTab:"student", loginErr:"", currentStudent:null, isTeacher:false,
+    roster:{}, progress:{}, notesText:"", notesUpdated:null, deadline:null,
+    drawerStudent:null, addModal:false, section:"reading", readIndex:0 };
+  var pollTimer = null;
+
+  function el(tag, attrs, children){
+    var e = document.createElement(tag);
+    attrs = attrs || {};
+    for (var k in attrs){
+      if (k === "class") e.className = attrs[k];
+      else if (k === "html") e.innerHTML = attrs[k];
+      else if (k.indexOf("on") === 0) e.addEventListener(k.slice(2), attrs[k]);
+      else e.setAttribute(k, attrs[k]);
+    }
+    (children||[]).forEach(function(c){ if (c) e.appendChild(typeof c === "string" ? document.createTextNode(c) : c); });
+    return e;
+  }
+  function toast(msg){
+    var t = document.getElementById("toast");
+    t.textContent = msg; t.classList.add("show");
+    setTimeout(function(){ t.classList.remove("show"); }, 2200);
+  }
+  function nowIso(){ return new Date().toISOString(); }
+  function fmtDate(iso){
+    if (!iso) return "—";
+    return new Date(iso).toLocaleDateString("tr-TR", {day:"numeric", month:"long", year:"numeric"});
+  }
+  function emptyProgress(){ return { pages:{}, answers:{}, completed_at:null }; }
+  function firstUnreadIndex(prog){
+    for (var i=0; i<TOPICS.length; i++){ if (!(prog.pages && prog.pages[TOPICS[i].id])) return i; }
+    return TOPICS.length - 1;
+  }
+  function closedScore(prog){
+    var total=0, correct=0;
+    Object.keys(QUESTIONS).forEach(function(qid){
+      var q = QUESTIONS[qid]; if (!q.closed) return; total++;
+      var a = prog.answers && prog.answers[qid]; if (a && a.correct) correct++;
+    });
+    return total ? correct/total : 0;
+  }
+  function allPagesRead(prog){ return TOPICS.every(function(t){ return prog.pages && prog.pages[t.id]; }); }
+  function allOpenSubmitted(prog){
+    return Object.keys(QUESTIONS).every(function(qid){
+      var q = QUESTIONS[qid]; if (q.closed) return true;
+      return prog.answers && prog.answers[qid] && prog.answers[qid].text;
+    });
+  }
+  function isComplete(prog){ return allPagesRead(prog) && allOpenSubmitted(prog) && closedScore(prog) >= CLOSED_THRESHOLD; }
+  function computeStatus(prog, deadlineIso){
+    prog = prog || emptyProgress();
+    var deadlinePassed = deadlineIso && new Date() > new Date(deadlineIso);
+    var complete = isComplete(prog);
+    if (complete && prog.completed_at && deadlineIso && new Date(prog.completed_at) > new Date(deadlineIso)) return "late";
+    if (complete) return "done";
+    if (deadlinePassed) return "warn";
+    var started = allPagesRead(prog) || Object.keys(prog.answers||{}).length > 0;
+    return started ? "progress" : "notstarted";
+  }
+  function statusMeta(s){
+    return {
+      done:{ label:"Tamamlandı", cls:"ok", icon:"✓" },
+      late:{ label:"Gecikmeli tamamlandı", cls:"late", icon:"⟳" },
+      warn:{ label:"Süresi geçti", cls:"warn", icon:"!" },
+      progress:{ label:"Devam ediyor", cls:"progress", icon:"…" },
+      notstarted:{ label:"Başlamadı", cls:"progress", icon:"·" }
+    }[s];
+  }
+
+  /* ---------------- SUPABASE VERİ KATMANI ---------------- */
+
+  async function fetchRoster(){
+    var r = await sb.from("roster").select("*");
+    var map = {};
+    (r.data||[]).forEach(function(row){ map[row.okul_no] = row; });
+    return map;
+  }
+  async function fetchProgressAll(){
+    var r = await sb.from("progress").select("*");
+    var map = {};
+    (r.data||[]).forEach(function(row){ map[row.okul_no] = row; });
+    return map;
+  }
+  async function fetchProgressOne(okulNo){
+    var r = await sb.from("progress").select("*").eq("okul_no", okulNo).maybeSingle();
+    return r.data || null;
+  }
+  async function fetchConfig(){
+    var r = await sb.from("hafta_config").select("*").eq("id","hafta1").maybeSingle();
+    return r.data ? r.data.deadline : null;
+  }
+  async function fetchNotes(){
+    var r = await sb.from("hafta_notes").select("*").eq("id","hafta1").maybeSingle();
+    return r.data || { metin:"", updated_at:null };
+  }
+  async function upsertProgress(okulNo, patch){
+    var current = state.progress[okulNo] || (await fetchProgressOne(okulNo)) || emptyProgress();
+    var body = Object.assign({}, current, patch, { okul_no: okulNo, updated_at: nowIso() });
+    if (isComplete(body) && !body.completed_at) body.completed_at = nowIso();
+    if (!isComplete(body)) body.completed_at = null;
+    await sb.from("progress").upsert(body);
+    state.progress[okulNo] = body;
+    return body;
+  }
+  async function savePage(okulNo, pageId, val){
+    var current = state.progress[okulNo] || emptyProgress();
+    var pages = Object.assign({}, current.pages||{}); pages[pageId] = val;
+    await upsertProgress(okulNo, { pages: pages, answers: current.answers||{} });
+  }
+  async function saveAnswer(okulNo, qid, answerObj){
+    var current = state.progress[okulNo] || emptyProgress();
+    var answers = Object.assign({}, current.answers||{}); answers[qid] = answerObj;
+    await upsertProgress(okulNo, { pages: current.pages||{}, answers: answers });
+  }
+  async function reviewAnswer(okulNo, qid, verdict){
+    var current = state.progress[okulNo] || emptyProgress();
+    var answers = Object.assign({}, current.answers||{});
+    if (!answers[qid]) return;
+    answers[qid] = Object.assign({}, answers[qid], { review: verdict });
+    await upsertProgress(okulNo, { pages: current.pages||{}, answers: answers });
+    render();
+  }
+  async function saveWeekNote(text){
+    await sb.from("hafta_notes").upsert({ id:"hafta1", metin:text, updated_at: nowIso() });
+    state.notesText = text; state.notesUpdated = nowIso();
+    toast("Not kaydedildi.");
+    render();
+  }
+  async function setDeadline(iso){
+    await sb.from("hafta_config").upsert({ id:"hafta1", deadline: iso });
+    state.deadline = iso;
+    toast("Süre güncellendi.");
+    render();
+  }
+  async function addStudent(okulNo, ad, sifre){
+    var r = await sb.from("roster").upsert({ okul_no: okulNo, ad: ad, sifre: sifre });
+    if (r.error){ toast("Hata: "+r.error.message); return; }
+    state.roster[okulNo] = { okul_no:okulNo, ad:ad, sifre:sifre };
+    toast("Öğrenci eklendi.");
+    render();
+  }
+
+  /* ---------------- RENDER (Artifact prototipiyle aynı yapı) ---------------- */
+
+  function render(){
+    var root = document.getElementById("app");
+    root.innerHTML = "";
+    if (!sb){
+      root.appendChild(el("div", { style:"padding:60px 24px; max-width:520px; margin:0 auto; text-align:center;" }, [
+        el("h2", { style:"margin-bottom:12px;" }, ["Bağlantı ayarlanmadı"]),
+        el("p", { style:"color:var(--ink-muted);" }, ["index.html dosyasının en üstündeki SUPABASE_URL ve SUPABASE_ANON_KEY değerlerini doldurman gerekiyor."])
+      ]));
+      return;
+    }
+    if (state.view === "login") root.appendChild(renderLogin());
+    else if (state.view === "student") root.appendChild(renderStudent());
+    else if (state.view === "teacher") root.appendChild(renderTeacher());
+  }
+
+  function renderLogin(){
+    var wrap = el("div", { class:"login-wrap" });
+    var card = el("div", { class:"login-card" });
+    card.appendChild(el("div", { class:"eyebrow" }, ["Kod-Asistan"]));
+    card.appendChild(el("h1", {}, ["1. Hafta'ya Giriş"]));
+    var tabs = el("div", { class:"tabs" });
+    tabs.appendChild(el("button", { class: state.loginTab==="student"?"active":"", onclick:function(){ state.loginTab="student"; state.loginErr=""; render(); } }, ["Öğrenci"]));
+    tabs.appendChild(el("button", { class: state.loginTab==="teacher"?"active":"", onclick:function(){ state.loginTab="teacher"; state.loginErr=""; render(); } }, ["Öğretmen"]));
+    card.appendChild(tabs);
+    var err = el("div", { class:"login-err" }, [state.loginErr||""]);
+
+    if (state.loginTab === "student"){
+      var noInput = el("input", { type:"text", inputmode:"numeric", placeholder:"okul numaranız" });
+      var pwInput = el("input", { type:"password", placeholder:"••••" });
+      card.appendChild(el("div", { class:"field" }, [ el("label",{},["Okul Numarası"]), noInput ]));
+      card.appendChild(el("div", { class:"field" }, [ el("label",{},["Şifre"]), pwInput ]));
+      card.appendChild(err);
+      card.appendChild(el("button", { class:"btn primary", style:"width:100%;", onclick:async function(){
+        var no = noInput.value.trim(); var pw = pwInput.value;
+        if (!no || !pw){ state.loginErr="Okul numarası ve şifre gerekli."; render(); return; }
+        var roster = await fetchRoster();
+        state.roster = roster;
+        var rec = roster[no];
+        if (!rec || rec.sifre !== pw){ state.loginErr="Okul numarası veya şifre hatalı."; render(); return; }
+        var prog = await fetchProgressOne(no) || emptyProgress();
+        state.progress[no] = prog;
+        state.deadline = await fetchConfig();
+        var nt = await fetchNotes();
+        state.notesText = nt.metin; state.notesUpdated = nt.updated_at;
+        state.currentStudent = no; state.view = "student"; state.loginErr = "";
+        state.readIndex = firstUnreadIndex(prog); state.section = "reading";
+        render();
+      } }, ["Giriş Yap"]));
+    } else {
+      var pwInput2 = el("input", { type:"password", placeholder:"öğretmen şifresi" });
+      card.appendChild(el("div", { class:"field" }, [ el("label",{},["Öğretmen Şifresi"]), pwInput2 ]));
+      card.appendChild(err);
+      card.appendChild(el("button", { class:"btn primary", style:"width:100%;", onclick:async function(){
+        if (pwInput2.value !== TEACHER_PASS){ state.loginErr="Şifre hatalı."; render(); return; }
+        state.roster = await fetchRoster();
+        state.progress = await fetchProgressAll();
+        state.deadline = await fetchConfig();
+        var nt = await fetchNotes();
+        state.notesText = nt.metin; state.notesUpdated = nt.updated_at;
+        state.isTeacher = true; state.view = "teacher"; state.loginErr = "";
+        render();
+        startPolling();
+      } }, ["Panele Gir"]));
+    }
+    wrap.appendChild(card);
+    return wrap;
+  }
+
+  function topBar(title, onLogout){
+    var bar = el("div", { class:"topbar" });
+    bar.appendChild(el("div", { class:"brand" }, ["Programlama Temelleri ", el("span",{},["· "+title])]));
+    bar.appendChild(el("button", { class:"btn ghost small", onclick:onLogout }, ["Çıkış"]));
+    return bar;
+  }
+
+  function renderStudent(){
+    var wrap = el("div", {});
+    wrap.appendChild(topBar(state.roster[state.currentStudent] ? state.roster[state.currentStudent].ad : state.currentStudent, function(){
+      stopPolling(); state.view="login"; state.currentStudent=null; render();
+    }));
+    var shell = el("div", { class:"shell" });
+
+    var side = el("div", { class:"side" });
+    side.appendChild(el("div", { class:"side-label" }, ["Haftalar"]));
+    side.appendChild(el("div", { class:"week-row active" }, [ el("span",{class:"dot now"}), "1. Hafta" ]));
+    for (var w=2; w<=4; w++) side.appendChild(el("div", { class:"week-row locked" }, [ el("span",{class:"dot locked"}), w+". Hafta" ]));
+    shell.appendChild(side);
+
+    var center = el("main", { class:"center" });
+    var prog = state.progress[state.currentStudent] || emptyProgress();
+    var status = computeStatus(prog, state.deadline);
+    var meta = statusMeta(status);
+    var strip = el("div", { class:"progress-strip" });
+    strip.appendChild(el("div", { class:"badge "+meta.cls }, [meta.icon]));
+    var pctRead = TOPICS.filter(function(t){ return prog.pages && prog.pages[t.id]; }).length / TOPICS.length;
+    strip.appendChild(el("div", { class:"txt" }, [ el("b",{},[meta.label]), el("span",{},["Okuma: %"+Math.round(pctRead*100)+" · Kapalı soru: %"+Math.round(closedScore(prog)*100)+" (eşik %"+Math.round(CLOSED_THRESHOLD*100)+")"]) ]));
+    var track = el("div", { class:"bar-track" }); track.appendChild(el("div", { class:"bar-fill", style:"width:"+Math.round(pctRead*100)+"%" }));
+    strip.appendChild(track);
+    center.appendChild(strip);
+
+    var tabs = el("div", { class:"section-tabs" });
+    tabs.appendChild(el("button", { class: state.section==="reading"?"active":"", onclick:function(){ state.section="reading"; render(); } }, ["📖 Konu Anlatımı"]));
+    tabs.appendChild(el("button", { class: state.section==="exercises"?"active":"", onclick:function(){ state.section="exercises"; render(); } }, ["✎ Egzersizler"]));
+    tabs.appendChild(el("button", { class: state.section==="notes"?"active":"", onclick:function(){ state.section="notes"; render(); } }, ["🗒️ Defter Notları"]));
+    center.appendChild(tabs);
+
+    if (state.section === "reading") center.appendChild(renderReader(prog));
+    else if (state.section === "exercises") Object.keys(QUESTIONS).forEach(function(qid){ center.appendChild(renderExercise(qid, prog)); });
+    else center.appendChild(renderNotesTab());
+
+    shell.appendChild(center);
+
+    var right = el("div", { class:"side right" });
+    right.appendChild(el("div", { class:"side-label" }, ["Ek Kaynaklar"]));
+    right.appendChild(el("div", { class:"bubble" }, [ el("b",{},["🔎 Video"]), "El-Harezmi ve algoritmanın tarihçesi (kısa anlatım)" ]));
+    right.appendChild(el("div", { class:"bubble" }, [ el("b",{},["📎 Ek okuma"]), "GİÇ analizi örnekleri: otomat, otopark, kapı şifresi" ]));
+    shell.appendChild(right);
+
+    wrap.appendChild(shell);
+    return wrap;
+  }
+
+  function renderReader(prog){
+    var idx = Math.max(0, Math.min(state.readIndex, TOPICS.length-1));
+    var t = TOPICS[idx];
+    var box = el("div", { class:"reader" });
+    var dots = el("div", { class:"reader-dots" });
+    TOPICS.forEach(function(tp,i){
+      var read = prog.pages && prog.pages[tp.id];
+      dots.appendChild(el("span", { class:"rd"+(read?" read":"")+(i===idx?" current":"") }));
+    });
+    dots.appendChild(el("span", { class:"rd-label" }, [(idx+1)+" / "+TOPICS.length]));
+    box.appendChild(dots);
+    box.appendChild(el("h3", {}, [t.title]));
+    box.appendChild(el("p", { class:"body" }, [t.body]));
+    var nav = el("div", { class:"reader-nav" });
+    var backBtn = el("button", { class:"btn", onclick:function(){ state.readIndex = Math.max(0, idx-1); render(); } }, ["← Geri"]);
+    if (idx === 0) backBtn.setAttribute("disabled","disabled");
+    nav.appendChild(backBtn);
+    var isLast = idx === TOPICS.length-1;
+    nav.appendChild(el("button", { class:"btn primary", onclick:async function(){
+      await savePage(state.currentStudent, t.id, true);
+      if (isLast) state.section = "exercises"; else state.readIndex = idx+1;
+      render();
+    } }, [isLast ? "Okudum, Egzersizlere Geç →" : "Okudum, İleri →"]));
+    box.appendChild(nav);
+    return box;
+  }
+
+  function renderNotesTab(){
+    var box = el("div", { class:"reader" });
+    box.appendChild(el("h3", {}, ["Bu Hafta İçin Defter Notu / Ödev"]));
+    if (state.notesText){
+      box.appendChild(el("p", { class:"body" }, [state.notesText]));
+      box.appendChild(el("div", { style:"font-size:12.5px; color:var(--ink-muted);" }, ["Son güncelleme: "+fmtDate(state.notesUpdated)]));
+    } else {
+      box.appendChild(el("p", { class:"body", style:"color:var(--ink-muted);" }, ["Öğretmenin bu hafta için eklediği bir not/ödev yok."]));
+    }
+    return box;
+  }
+
+  function renderExercise(qid, prog){
+    var q = QUESTIONS[qid];
+    var box = el("div", { class:"ex" });
+    box.appendChild(el("div", { class:"ex-kicker "+(q.closed?"closed":"open") }, [q.closed?"Kapalı Soru":"Açık Uçlu Soru"]));
+    box.appendChild(el("p", { class:"q" }, [q.text]));
+    var existing = prog.answers && prog.answers[qid];
+
+    if (q.type === "mc" || q.type === "tf"){
+      var options = q.type==="mc" ? q.opts : ["Doğru","Yanlış"];
+      var opts = el("div", { class:"opts" });
+      options.forEach(function(o){
+        var radio = el("input", { type:"radio", name:qid });
+        radio.checked = existing && existing.value === o;
+        opts.appendChild(el("label", {}, [radio, o]));
+        radio.addEventListener("change", async function(){
+          await saveAnswer(state.currentStudent, qid, { value:o, correct: o===q.correct, submitted_at: nowIso() });
+          render();
+        });
+      });
+      box.appendChild(opts);
+    } else if (q.type === "fill"){
+      var inp = el("input", { type:"text", placeholder:"cevabınızı yazın" });
+      inp.value = existing ? existing.value : "";
+      box.appendChild(inp);
+      box.appendChild(el("div", { class:"ex-foot" }, [ el("button", { class:"btn small", onclick:async function(){
+        var v = inp.value.trim().toLowerCase();
+        await saveAnswer(state.currentStudent, qid, { value:inp.value, correct: q.accepted.indexOf(v)!==-1, submitted_at: nowIso() });
+        render();
+      } }, ["Cevabı Gönder"]) ]));
+    } else {
+      var ta = el("textarea", { placeholder:"cevabınızı buraya yazın..." });
+      ta.value = existing ? (existing.text||"") : "";
+      box.appendChild(ta);
+      box.appendChild(el("div", { class:"ex-foot" }, [ el("button", { class:"btn small primary", onclick:async function(){
+        if (!ta.value.trim()) return;
+        await saveAnswer(state.currentStudent, qid, { text:ta.value, submitted_at: nowIso(), review: (existing&&existing.review)||"bekliyor" });
+        render();
+      } }, ["Cevabı Gönder"]) ]));
+    }
+
+    if (existing){
+      if (q.closed){
+        box.appendChild(el("div", { class:"ex-result "+(existing.correct?"correct":"wrong") }, [existing.correct?"✓ Doğru":"✗ Yanlış, tekrar deneyebilirsin"]));
+      } else {
+        var rv = existing.review || "bekliyor";
+        var cls = rv==="yeterli"?"reviewed-ok":rv==="gelistirilmeli"?"reviewed-bad":"pending";
+        var label = rv==="yeterli"?"✓ Öğretmen: yeterli":rv==="gelistirilmeli"?"△ Öğretmen: geliştirilmeli":"⟳ Gönderildi, öğretmen incelemesi bekliyor";
+        box.appendChild(el("div", { class:"ex-result "+cls }, [label]));
+      }
+    }
+    return box;
+  }
+
+  function renderTeacher(){
+    var wrap = el("div", {});
+    wrap.appendChild(topBar("Öğretmen Paneli", function(){ stopPolling(); state.view="login"; state.isTeacher=false; render(); }));
+    var tw = el("div", { class:"teacher-wrap" });
+
+    var head = el("div", { class:"t-head" });
+    head.appendChild(el("h2", { style:"font-size:21px;" }, ["1. Hafta — Sınıf Durumu"]));
+    head.appendChild(el("button", { class:"btn primary", onclick:function(){ state.addModal=true; render(); } }, ["+ Öğrenci Ekle"]));
+    tw.appendChild(head);
+
+    var cfg = el("div", { class:"t-config" });
+    cfg.appendChild(el("span", { style:"color:var(--ink-muted);" }, ["Bu haftanın bitiş tarihi:"]));
+    cfg.appendChild(el("b", {}, [fmtDate(state.deadline)]));
+    cfg.appendChild(el("button", { class:"btn small", onclick:function(){ var d=new Date(); d.setMinutes(d.getMinutes()-1); setDeadline(d.toISOString()); } }, ["Test: süreyi şimdi doldur"]));
+    cfg.appendChild(el("button", { class:"btn small", onclick:function(){ var d=new Date(); d.setDate(d.getDate()+7); setDeadline(d.toISOString()); } }, ["Süreyi 7 gün ileri al"]));
+    tw.appendChild(cfg);
+
+    var noteCard = el("div", { class:"t-config", style:"flex-direction:column; align-items:stretch; gap:10px;" });
+    noteCard.appendChild(el("div", { style:"display:flex; justify-content:space-between; align-items:center;" }, [
+      el("b", {}, ["Bu Haftanın Notu / Ödevi"]),
+      el("span", { style:"font-size:12px; color:var(--ink-muted);" }, [state.notesUpdated ? "Son güncelleme: "+fmtDate(state.notesUpdated) : "Henüz eklenmedi"])
+    ]));
+    var weekNoteTa = el("textarea", { placeholder:"Bu hafta tüm sınıfın defterine yazmasını istediğin ödevi buraya yaz — gerek yoksa boş bırakabilirsin.", style:"width:100%; min-height:80px; border:1px solid var(--rule); border-radius:8px; padding:10px 12px; background:var(--paper); color:var(--ink); resize:vertical;" });
+    weekNoteTa.value = state.notesText || "";
+    noteCard.appendChild(weekNoteTa);
+    noteCard.appendChild(el("div", { style:"display:flex; justify-content:flex-end;" }, [ el("button", { class:"btn small primary", onclick:function(){ saveWeekNote(weekNoteTa.value); } }, ["Notu Kaydet"]) ]));
+    tw.appendChild(noteCard);
+
+    var table = el("table", { class:"roster" });
+    table.appendChild(el("thead", {}, [ el("tr", {}, [ el("th",{},["Öğrenci"]), el("th",{},["Okul No"]), el("th",{},["Okuma"]), el("th",{},["Kapalı Soru"]), el("th",{},["Açık Soru"]), el("th",{},["Durum"]) ]) ]));
+    var tbody = el("tbody", {});
+    var ids = Object.keys(state.roster);
+    if (ids.length === 0){
+      tbody.appendChild(el("tr", {}, [ el("td", { colspan:"6", style:"color:var(--ink-muted);" }, ["Henüz öğrenci eklenmedi."]) ]));
+    }
+    ids.forEach(function(no){
+      var rec = state.roster[no];
+      var prog = state.progress[no] || emptyProgress();
+      var status = computeStatus(prog, state.deadline);
+      var meta = statusMeta(status);
+      var pctRead = Math.round((TOPICS.filter(function(t){ return prog.pages && prog.pages[t.id]; }).length / TOPICS.length)*100);
+      var openDone = Object.keys(QUESTIONS).filter(function(qid){ return !QUESTIONS[qid].closed && prog.answers && prog.answers[qid] && prog.answers[qid].text; }).length;
+      var openTotal = Object.keys(QUESTIONS).filter(function(qid){ return !QUESTIONS[qid].closed; }).length;
+      tbody.appendChild(el("tr", { class:"clickable", onclick:function(){ state.drawerStudent=no; render(); } }, [
+        el("td", {}, [rec.ad || "—"]), el("td", { class:"mono" }, [no]),
+        el("td", {}, ["%"+pctRead]), el("td", {}, ["%"+Math.round(closedScore(prog)*100)]),
+        el("td", {}, [openDone+"/"+openTotal]),
+        el("td", {}, [ el("span", { class:"status-pill "+meta.cls }, [meta.icon+" "+meta.label]) ])
+      ]));
+    });
+    table.appendChild(tbody);
+    tw.appendChild(table);
+    wrap.appendChild(tw);
+
+    if (state.drawerStudent) wrap.appendChild(renderDrawer(state.drawerStudent));
+    if (state.addModal) wrap.appendChild(renderAddModal());
+    return wrap;
+  }
+
+  function renderDrawer(no){
+    var rec = state.roster[no] || {};
+    var prog = state.progress[no] || emptyProgress();
+    var backdrop = el("div", { class:"drawer-backdrop", onclick:function(e){ if (e.target===e.currentTarget){ state.drawerStudent=null; render(); } } });
+    var drawer = el("div", { class:"drawer" });
+    drawer.appendChild(el("button", { class:"btn small ghost drawer-close", onclick:function(){ state.drawerStudent=null; render(); } }, ["✕ Kapat"]));
+    drawer.appendChild(el("h2", {}, [rec.ad || no]));
+    drawer.appendChild(el("div", { class:"sub" }, ["Okul No: "+no]));
+    Object.keys(QUESTIONS).forEach(function(qid){
+      var q = QUESTIONS[qid];
+      var a = prog.answers && prog.answers[qid];
+      var card = el("div", { class:"review-card" });
+      card.appendChild(el("div", { class:"qtxt" }, [(q.closed?"Kapalı · ":"Açık uçlu · ")+q.text]));
+      if (!a){ card.appendChild(el("div", { class:"ans", style:"color:var(--ink-muted);" }, ["Henüz cevaplanmadı."])); }
+      else if (q.closed){ card.appendChild(el("div", { class:"ans" }, ["Cevap: "+a.value+"  →  "+(a.correct?"✓ doğru":"✗ yanlış")])); }
+      else {
+        card.appendChild(el("div", { class:"ans" }, [a.text]));
+        var actions = el("div", { class:"review-actions" });
+        actions.appendChild(el("button", { class:"btn small"+(a.review==="yeterli"?" primary":""), onclick:function(){ reviewAnswer(no, qid, "yeterli"); } }, ["Yeterli"]));
+        actions.appendChild(el("button", { class:"btn small"+(a.review==="gelistirilmeli"?" primary":""), onclick:function(){ reviewAnswer(no, qid, "gelistirilmeli"); } }, ["Geliştirilmeli"]));
+        card.appendChild(actions);
+      }
+      drawer.appendChild(card);
+    });
+    backdrop.appendChild(drawer);
+    return backdrop;
+  }
+
+  function renderAddModal(){
+    var backdrop = el("div", { class:"modal-backdrop", onclick:function(e){ if (e.target===e.currentTarget){ state.addModal=false; render(); } } });
+    var modal = el("div", { class:"modal" });
+    modal.appendChild(el("h3", {}, ["Yeni Öğrenci Ekle"]));
+    var noInp = el("input", { type:"text", placeholder:"Okul numarası" });
+    var adInp = el("input", { type:"text", placeholder:"Ad Soyad" });
+    var pwInp = el("input", { type:"text", placeholder:"Şifre" });
+    modal.appendChild(noInp); modal.appendChild(adInp); modal.appendChild(pwInp);
+    var row = el("div", { style:"display:flex; gap:8px; justify-content:flex-end;" });
+    row.appendChild(el("button", { class:"btn small", onclick:function(){ state.addModal=false; render(); } }, ["Vazgeç"]));
+    row.appendChild(el("button", { class:"btn small primary", onclick:function(){
+      if (!noInp.value.trim() || !adInp.value.trim() || !pwInp.value.trim()) return;
+      addStudent(noInp.value.trim(), adInp.value.trim(), pwInp.value.trim());
+      state.addModal=false;
+    } }, ["Ekle"]));
+    modal.appendChild(row);
+    backdrop.appendChild(modal);
+    return backdrop;
+  }
+
+  function startPolling(){
+    stopPolling();
+    pollTimer = setInterval(async function(){
+      if (state.view !== "teacher") return;
+      state.roster = await fetchRoster();
+      state.progress = await fetchProgressAll();
+      if (!state.drawerStudent && !state.addModal) render();
+    }, 8000);
+  }
+  function stopPolling(){ if (pollTimer){ clearInterval(pollTimer); pollTimer = null; } }
+
+  render();
+})();
+</script>
+</body>
+</html>
