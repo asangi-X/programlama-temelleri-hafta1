@@ -208,7 +208,8 @@
     roster:{}, teachers:{}, weeks:{}, progress:{}, notes:{}, siniflar:{},
     currentWeek:null, section:"flow", flowIndex:0,
     drawerStudent:null, addModal:false, addTeacherModal:false, addClassModal:false,
-    teacher:{ selectedWeek:null, addWeekModal:false, addTopicOpen:false, addQOpen:null, panelTab:"icerik", classFilter:"all", editingTopic:null, editingQuestion:null, editingStudentPw:null, editingTeacherPw:null }
+    teacher:{ selectedWeek:null, addWeekModal:false, addTopicOpen:false, addQOpen:null, panelTab:"icerik", classFilter:"all", editingTopic:null, editingQuestion:null, editingStudentPw:null, editingTeacherPw:null },
+    staffPwModal:false
   };
   var db = null;
   var unsubs = [];
@@ -255,6 +256,9 @@
     return total ? correct/total : 0;
   }
   function allPagesRead(prog, week){
+    if (week.sayfalar && week.sayfalar.length){
+      return week.sayfalar.every(function(p){ return prog.pages && prog.pages[p.id]; });
+    }
     var konular = week.konular || [];
     if (!konular.length) return true;
     return konular.every(function(t){ return prog.pages && prog.pages[t.id]; });
@@ -273,8 +277,15 @@
   }
   function hasClosedQuestions(week){ return Object.keys(week.sorular||{}).some(function(qid){ return week.sorular[qid].closed; }); }
   function computeFlow(week){
-    var konular = week.konular || [];
     var sorular = week.sorular || {};
+    if (week.sayfalar && week.sayfalar.length){
+      var sflow = week.sayfalar.map(function(p){ return {type:"sayfa", id:p.id}; });
+      Object.keys(sorular).sort(function(a,b){
+        return (parseInt(a.replace(/\D/g,""),10)||0) - (parseInt(b.replace(/\D/g,""),10)||0);
+      }).forEach(function(qid){ sflow.push({type:"soru", id:qid}); });
+      return sflow;
+    }
+    var konular = week.konular || [];
     var sira = week.sira || [];
     var flow = [];
     var seen = {};
@@ -350,7 +361,7 @@
     var flow = computeFlow(week);
     for (var i=0;i<flow.length;i++){
       var it = flow[i];
-      var done = it.type==="konu" ? (prog.pages && prog.pages[it.id]) : (prog.answers && prog.answers[it.id]);
+      var done = (it.type==="konu"||it.type==="sayfa") ? (prog.pages && prog.pages[it.id]) : (prog.answers && prog.answers[it.id]);
       if (!done) return i;
     }
     return Math.max(0, flow.length-1);
@@ -565,6 +576,22 @@
     state.teacher.editingTeacherPw = null;
     toast("Öğretmenin şifresi güncellendi.");
   }
+  function effectivePassword(username){
+    // Yönetici (admin) şifresi de artık veritabanında saklanabiliyor; hiç
+    // değiştirilmediyse koddaki ilk (varsayılan) şifreye geri düşer.
+    if (username === ADMIN_USER){
+      return (state.teachers[ADMIN_USER] && state.teachers[ADMIN_USER].sifre) || ADMIN_PASS;
+    }
+    return state.teachers[username] ? state.teachers[username].sifre : null;
+  }
+  async function changeOwnStaffPassword(currentPw, newPw){
+    var u = state.staffUser;
+    if (effectivePassword(u) !== currentPw){ toast("Mevcut şifre yanlış."); return false; }
+    var rec = state.teachers[u];
+    await db.collection("ogretmenler").doc(u).set(Object.assign({}, rec, { sifre: newPw, addedAt: (rec && rec.addedAt) || nowIso() }));
+    toast("Şifren güncellendi.");
+    return true;
+  }
   async function addWeek(haftaNo, baslik, baslangic, bitis){
     await db.collection("haftalar").doc("hafta"+haftaNo).set({
       hafta_no:haftaNo, baslik:baslik, baslangic_tarihi:baslangic, bitis_tarihi:bitis, konular:[], sorular:{}
@@ -713,7 +740,7 @@
       card.appendChild(err);
       card.appendChild(el("button", { class:"btn primary", style:"width:100%;", onclick:function(){
         var u = uInput.value.trim(); var pw = pwInput2.value;
-        if (u === ADMIN_USER && pw === ADMIN_PASS){
+        if (u === ADMIN_USER && pw === effectivePassword(ADMIN_USER)){
           state.role = "admin"; state.staffUser = u;
         } else if (state.teachers[u] && state.teachers[u].sifre === pw){
           state.role = "teacher"; state.staffUser = u;
@@ -763,6 +790,29 @@
       if (nw !== nw2){ toast("Yeni şifreler eşleşmiyor."); return; }
       changeOwnStudentPassword(cur, nw).then(function(ok){
         if (ok){ state.studentPwModal=false; render(); }
+      });
+    } }, ["Kaydet"]));
+    modal.appendChild(row);
+    backdrop.appendChild(modal);
+    return backdrop;
+  }
+
+  function renderStaffChangePwModal(){
+    var backdrop = el("div", { class:"modal-backdrop", onclick:function(e){ if (e.target===e.currentTarget){ state.staffPwModal=false; render(); } } });
+    var modal = el("div", { class:"modal" });
+    modal.appendChild(el("h3", {}, ["Şifremi Değiştir"]));
+    var curInp = el("input", { class:"inp", type:"password", placeholder:"Mevcut şifre" });
+    var newInp = el("input", { class:"inp", type:"password", placeholder:"Yeni şifre" });
+    var newInp2 = el("input", { class:"inp", type:"password", placeholder:"Yeni şifre (tekrar)" });
+    modal.appendChild(curInp); modal.appendChild(newInp); modal.appendChild(newInp2);
+    var row = el("div", { style:"display:flex; gap:8px; justify-content:flex-end;" });
+    row.appendChild(el("button", { class:"btn small", onclick:function(){ state.staffPwModal=false; render(); } }, ["Vazgeç"]));
+    row.appendChild(el("button", { class:"btn small primary", onclick:function(){
+      var cur = curInp.value, nw = newInp.value.trim(), nw2 = newInp2.value.trim();
+      if (!cur || !nw || !nw2){ toast("Lütfen tüm alanları doldur."); return; }
+      if (nw !== nw2){ toast("Yeni şifreler eşleşmiyor."); return; }
+      changeOwnStaffPassword(cur, nw).then(function(ok){
+        if (ok){ state.staffPwModal=false; render(); }
       });
     } }, ["Kaydet"]));
     modal.appendChild(row);
@@ -823,7 +873,12 @@
     var strip = el("div", { class:"progress-strip" });
     strip.appendChild(el("div", { class:"badge "+meta.cls }, [meta.icon]));
     var konular = week.konular || [];
-    var pctRead = konular.length ? (konular.filter(function(t){ return prog.pages && prog.pages[t.id]; }).length / konular.length) : 0;
+    var pctRead;
+    if (week.sayfalar && week.sayfalar.length){
+      pctRead = week.sayfalar.filter(function(p){ return prog.pages && prog.pages[p.id]; }).length / week.sayfalar.length;
+    } else {
+      pctRead = konular.length ? (konular.filter(function(t){ return prog.pages && prog.pages[t.id]; }).length / konular.length) : 0;
+    }
     strip.appendChild(el("div", { class:"txt" }, [
       el("b",{},[week.baslik || (state.currentWeek+". Hafta")]),
       el("span",{},["Okuma: %"+Math.round(pctRead*100)+" · Kapalı soru: %"+Math.round(closedScore(prog, week)*100)+" · Teslim: "+fmtDate(week.bitis_tarihi)]),
@@ -865,7 +920,7 @@
     var sorular = week.sorular || {};
     var dots = el("div", { class:"reader-dots" });
     flow.forEach(function(fi,i){
-      var done = fi.type==="konu" ? (prog.pages && prog.pages[fi.id]) : (prog.answers && prog.answers[fi.id]);
+      var done = (fi.type==="konu"||fi.type==="sayfa") ? (prog.pages && prog.pages[fi.id]) : (prog.answers && prog.answers[fi.id]);
       dots.appendChild(el("span", { class:"rd"+(done?" read":"")+(i===idx?" current":"") }));
     });
     dots.appendChild(el("span", { class:"rd-label" }, [(idx+1)+" / "+flow.length]));
@@ -873,7 +928,13 @@
 
     var isLast = idx === flow.length-1;
     var nextLabel = null;
-    if (item.type === "konu"){
+    if (item.type === "sayfa"){
+      var sp = (week.sayfalar||[]).filter(function(x){ return x.id===item.id; })[0];
+      if (sp){
+        box.appendChild(renderSayfa(sp, prog, week));
+        nextLabel = isLast ? "Bitir ✓" : "İleri →";
+      }
+    } else if (item.type === "konu"){
       var t = konular.filter(function(x){ return x.id===item.id; })[0];
       if (t){
         box.appendChild(el("h3", {}, [t.title]));
@@ -894,7 +955,7 @@
     nav.appendChild(backBtn);
     if (nextLabel){
       nav.appendChild(el("button", { class:"btn primary", onclick:function(){
-        if (item.type === "konu") savePage(state.currentStudent, state.currentWeek, item.id, true);
+        if (item.type === "konu" || item.type === "sayfa") savePage(state.currentStudent, state.currentWeek, item.id, true);
         if (!isLast) state.flowIndex = idx+1;
         render();
       } }, [nextLabel]));
@@ -920,6 +981,146 @@
     var flow = computeFlow(week);
     if (state.flowIndex < flow.length - 1) state.flowIndex += 1;
   }
+  function renderSayfa(page, prog, week){
+    var box = el("div", { class:"sayfa-box" });
+    var existing = (prog.answers && prog.answers[page.id]) || {};
+    function saveField(key, value){
+      var updated = Object.assign({}, (prog.answers && prog.answers[page.id]) || {});
+      updated[key] = value;
+      saveAnswer(state.currentStudent, state.currentWeek, page.id, updated);
+    }
+    function paragraphs(text){
+      return (text||"").split(/\n\n+/).map(function(p){ return el("p", { class:"body" }, [p]); });
+    }
+    if (page.baslik) box.appendChild(el("h3", {}, [page.baslik]));
+
+    if (page.tip === "okuma" || page.tip === "kutu_okuma"){
+      paragraphs(page.metin).forEach(function(p){ box.appendChild(p); });
+    } else if (page.tip === "hazirlik"){
+      box.appendChild(el("p", { class:"q" }, [page.soru]));
+      var ta = el("textarea", { placeholder:"cevabınızı buraya yazın..." });
+      ta.value = existing.text || "";
+      ta.addEventListener("blur", function(){ saveField("text", ta.value); });
+      box.appendChild(ta);
+    } else if (page.tip === "kavram_haritasi"){
+      if (page.yonerge) box.appendChild(el("p", { class:"body" }, [page.yonerge]));
+      box.appendChild(el("div", { style:"font-weight:700; margin:8px 0;" }, ["Anahtar Kavram: "+page.kavram]));
+      var words = existing.kelimeler || [];
+      var wordsWrap = el("div", { style:"display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;" });
+      for (var wi=0; wi<(page.kelime_sayisi||5); wi++){
+        (function(i){
+          var inp = el("input", { type:"text", placeholder:(i+1)+". kelime" });
+          inp.value = words[i] || "";
+          inp.addEventListener("blur", function(){
+            var vals = (existing.kelimeler||[]).slice();
+            while (vals.length <= i) vals.push("");
+            vals[i] = inp.value;
+            saveField("kelimeler", vals);
+          });
+          wordsWrap.appendChild(inp);
+        })(wi);
+      }
+      box.appendChild(wordsWrap);
+      box.appendChild(el("div", {}, [page.cumle_istem || "İlgili Cümlem:"]));
+      var cumleInp = el("textarea", { placeholder:"cümlenizi yazın..." });
+      cumleInp.value = existing.cumle || "";
+      cumleInp.addEventListener("blur", function(){ saveField("cumle", cumleInp.value); });
+      box.appendChild(cumleInp);
+    } else if (page.tip === "cikis_karti"){
+      if (page.yonerge) box.appendChild(el("p", { class:"body" }, [page.yonerge]));
+      var maddeVals = existing.maddeler || {};
+      (page.maddeler||[]).forEach(function(m, mi){
+        box.appendChild(el("div", { style:"font-weight:700; margin-top:10px;" }, [m.etiket]));
+        box.appendChild(el("div", { class:"body", style:"font-size:13px; color:var(--ink-muted);" }, [m.aciklama]));
+        for (var k=0; k<(m.adet||1); k++){
+          (function(mi,k){
+            var inp = el("input", { type:"text", placeholder:(k+1)+"." });
+            inp.value = ((maddeVals[mi]||[])[k]) || "";
+            inp.addEventListener("blur", function(){
+              var mv = Object.assign({}, existing.maddeler||{});
+              var arr = (mv[mi]||[]).slice(); while (arr.length<=k) arr.push(""); arr[k]=inp.value;
+              mv[mi]=arr;
+              saveField("maddeler", mv);
+            });
+            box.appendChild(inp);
+          })(mi,k);
+        }
+      });
+    } else if (page.tip === "uygulama"){
+      box.appendChild(el("h4", {}, [page.ad]));
+      if (page.sure) box.appendChild(el("div", { style:"font-size:12.5px;color:var(--ink-muted);" }, ["Süre: "+page.sure]));
+      if (page.amac) box.appendChild(el("div", { style:"font-size:12.5px;color:var(--ink-muted);" }, ["Amaç: "+page.amac]));
+      if (page.senaryo) paragraphs(page.senaryo).forEach(function(p){ box.appendChild(p); });
+      var asamaVals = existing.asamalar || {};
+      (page.asamalar||[]).forEach(function(asama, ai){
+        box.appendChild(el("h4", {}, [asama.baslik]));
+        if (asama.yonerge) box.appendChild(el("p", { class:"body" }, [asama.yonerge]));
+        if (asama.on_bilgi) paragraphs(asama.on_bilgi).forEach(function(p){ box.appendChild(p); });
+        (asama.sorular||[]).forEach(function(s, si){
+          box.appendChild(el("p", { class:"q" }, [(s.etiket?s.etiket+": ":"")+s.soru]));
+          var ta2 = el("textarea", { placeholder:"cevabınızı buraya yazın..." });
+          ta2.value = ((asamaVals[ai]||{})[si]) || "";
+          ta2.addEventListener("blur", function(ai,si,ta2){ return function(){
+            var av = Object.assign({}, existing.asamalar||{});
+            var stage = Object.assign({}, av[ai]||{});
+            stage[si] = ta2.value; av[ai] = stage;
+            saveField("asamalar", av);
+          }; }(ai,si,ta2));
+          box.appendChild(ta2);
+        });
+      });
+    } else if (page.tip === "sira_sizde"){
+      if (page.senaryo) paragraphs(page.senaryo).forEach(function(p){ box.appendChild(p); });
+      var gorevVals = existing.gorevler || {};
+      (page.gorevler||[]).forEach(function(g, gi){
+        box.appendChild(el("p", { class:"q" }, [g.yonerge]));
+        for (var gk=0; gk<(g.madde_sayisi||1); gk++){
+          (function(gi,k){
+            var inp = el("input", { type:"text", placeholder:(k+1)+"." });
+            inp.value = ((gorevVals[gi]||[])[k]) || "";
+            inp.addEventListener("blur", function(){
+              var gv = Object.assign({}, existing.gorevler||{});
+              var arr = (gv[gi]||[]).slice(); while (arr.length<=k) arr.push(""); arr[k]=inp.value;
+              gv[gi]=arr;
+              saveField("gorevler", gv);
+            });
+            box.appendChild(inp);
+          })(gi,gk);
+        }
+      });
+      if (page.not) box.appendChild(el("div", { style:"margin-top:10px; font-size:12.5px; color:var(--late);" }, [page.not]));
+    } else if (page.tip === "ornek"){
+      if (page.ad) box.appendChild(el("h4", {}, [page.ad]));
+      if (page.senaryo) paragraphs(page.senaryo).forEach(function(p){ box.appendChild(p); });
+      if (page.sozde_kod && page.sozde_kod.length){
+        var pre = el("pre", { style:"background:#f4f4f4; padding:10px; border-radius:8px; font-size:13px; white-space:pre-wrap;" });
+        pre.textContent = page.sozde_kod.join("\n");
+        box.appendChild(pre);
+      }
+      if (page.elle_calistirma){
+        box.appendChild(el("div", { style:"margin-top:8px;" }, ["Örnek Girdiler: "+page.elle_calistirma.girdiler]));
+        box.appendChild(el("div", {}, ["Beklenen Çıktı: "+page.elle_calistirma.beklenen_cikti]));
+      }
+    } else if (page.tip === "tablo"){
+      var table = el("table", { style:"width:100%; border-collapse:collapse; font-size:13px;" });
+      var thead = el("thead", {});
+      var htr = el("tr", {});
+      (page.basliklar||[]).forEach(function(h){ htr.appendChild(el("th", { style:"border:1px solid #ddd; padding:6px; text-align:left;" }, [h])); });
+      thead.appendChild(htr); table.appendChild(thead);
+      var tbody = el("tbody", {});
+      (page.satirlar||[]).forEach(function(row){
+        var tr = el("tr", {});
+        row.forEach(function(c){ tr.appendChild(el("td", { style:"border:1px solid #ddd; padding:6px;" }, [c])); });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      box.appendChild(table);
+    } else if (page.metin){
+      paragraphs(page.metin).forEach(function(p){ box.appendChild(p); });
+    }
+    return box;
+  }
+
   function renderExercise(qid, q, prog, week){
     var box = el("div", { class:"ex" });
     box.appendChild(el("div", { class:"ex-kicker "+(q.closed?"closed":"open") }, [q.closed?"Kapalı Soru":(q.type==="list"?"Kelime Listesi":"Açık Uçlu Soru")]));
@@ -1018,7 +1219,12 @@
   function renderTeacher(){
     var wrap = el("div", { class:"view-wrap" });
     var roleLabel = state.role === "admin" ? "Yönetici Paneli ("+state.staffUser+")" : "Öğretmen Paneli ("+state.staffUser+")";
-    wrap.appendChild(topBar(roleLabel, function(){ state.view="login"; state.isStaff=false; state.role=null; render(); }));
+    wrap.appendChild(topBar(roleLabel, function(){
+      state.view="login"; state.isStaff=false; state.role=null; state.staffPwModal=false; render();
+    }, [
+      el("button", { class:"btn ghost small", onclick:function(){ state.staffPwModal=true; render(); } }, ["🔑 Şifremi Değiştir"])
+    ]));
+    if (state.staffPwModal) wrap.appendChild(renderStaffChangePwModal());
     var tw = el("div", { class:"teacher-wrap", "data-scroll-key":"teacher-wrap" });
     var nos = sortedWeekNos();
 
@@ -1173,7 +1379,7 @@
   function renderTeacherAccountsPanel(){
     var wrap = el("div", { class:"t-config", style:"flex-direction:column; align-items:stretch; gap:10px;" });
     wrap.appendChild(el("b", {}, ["Öğretmen Hesapları (sadece yönetici görebilir)"]));
-    var ids = Object.keys(state.teachers);
+    var ids = Object.keys(state.teachers).filter(function(u){ return u !== ADMIN_USER; });
     if (!ids.length){
       wrap.appendChild(el("div", { style:"color:var(--ink-muted); font-size:13px;" }, ["Henüz eklenmiş öğretmen hesabı yok."]));
     } else {
