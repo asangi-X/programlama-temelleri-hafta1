@@ -1434,7 +1434,20 @@
       cardWrap.appendChild(moveButtons);
       var inner = el("div", { style:"flex:1; min-width:0;" });
 
-      if (item.type === "konu"){
+      if (item.type === "sayfa"){
+        var sp = (week.sayfalar||[]).filter(function(x){ return x.id===item.id; })[0];
+        if (!sp) return;
+        var scard = el("div", { class:"kq-card" });
+        var tipEtiket = {
+          okuma:"📖 Okuma", kutu_okuma:"📖 Okuma (kutu)", hazirlik:"✏️ Hazırlık Sorusu",
+          kavram_haritasi:"🧠 Kavram Haritası", cikis_karti:"🎫 3-2-1 Çıkış Kartı",
+          uygulama:"🛠️ Uygulama", sira_sizde:"✍️ Sıra Sizde", ornek:"💡 Örnek",
+          tablo:"📊 Tablo"
+        }[sp.tip] || sp.tip;
+        scard.appendChild(el("div", { class:"kq-kicker" }, [tipEtiket + (sp.baslik ? " — "+sp.baslik : "")]));
+        scard.appendChild(renderSayfa(sp, { pages:{}, answers:{} }, week));
+        inner.appendChild(scard);
+      } else if (item.type === "konu"){
         var t = konular.filter(function(x){ return x.id===item.id; })[0];
         if (!t) return;
         var card = el("div", { class:"kq-card" });
