@@ -504,6 +504,10 @@
     var body = Object.assign({}, current, patch, { okul_no:no, hafta_no:wk, updated_at: nowIso() });
     if (isComplete(body, week) && !body.completed_at) body.completed_at = nowIso();
     if (!isComplete(body, week)) body.completed_at = null;
+    // Sunucudan (gerçek zamanlı senkronizasyon) yanıt beklemeden ekranı hemen
+    // güncelle — böylece ilerleme çizgileri/işaretler tıklar tıklamaz değişir,
+    // ağ/senkronizasyon gecikmesine bağlı kalmaz.
+    state.progress = Object.assign({}, state.progress); state.progress[key] = body;
     await db.collection("progress").doc(key).set(body);
   }
   async function savePage(no, wk, pageId, val){
