@@ -620,6 +620,19 @@
     state.teacher.editingTopic = null;
     toast("Konu güncellendi.");
   }
+  async function updateSayfa(weekNo, pageId, newData){
+    var week = state.weeks[weekNo];
+    var sayfalar = (week.sayfalar||[]).map(function(p){ return p.id===pageId ? Object.assign({}, newData, { id:pageId }) : p; });
+    await db.collection("haftalar").doc("hafta"+weekNo).set(Object.assign({}, week, { sayfalar: sayfalar }));
+    state.teacher.editingSayfa = null;
+    toast("Sayfa güncellendi.");
+  }
+  async function deleteSayfa(weekNo, pageId){
+    var week = state.weeks[weekNo];
+    var sayfalar = (week.sayfalar||[]).filter(function(p){ return p.id !== pageId; });
+    await db.collection("haftalar").doc("hafta"+weekNo).set(Object.assign({}, week, { sayfalar: sayfalar }));
+    toast("Sayfa silindi.");
+  }
   async function addQuestion(weekNo, qDef){
     var week = state.weeks[weekNo];
     var sorular = Object.assign({}, week.sorular||{});
@@ -981,6 +994,173 @@
     var flow = computeFlow(week);
     if (state.flowIndex < flow.length - 1) state.flowIndex += 1;
   }
+  function renderSayfaEditForm(weekNo, page){
+    var form = el("div", { class:"kq-card" });
+    var fieldStyle = "width:100%; box-sizing:border-box; padding:9px 11px; border:1px solid var(--rule); border-radius:7px; background:var(--paper); color:var(--ink); font:inherit; margin-bottom:8px;";
+    var labelStyle = "font-size:12px; color:var(--ink-muted); display:block; margin:6px 0 3px;";
+    function field(labelText, inputEl){
+      form.appendChild(el("label", { style:labelStyle }, [labelText]));
+      form.appendChild(inputEl);
+      return inputEl;
+    }
+    var getters = [];
+
+    var baslikInp = el("input", { class:"inp", type:"text", style:fieldStyle, value:page.baslik||"" });
+    baslikInp.value = page.baslik || "";
+    field("Sayfa Başlığı", baslikInp);
+
+    if (page.tip === "okuma" || page.tip === "kutu_okuma"){
+      var metinTa = el("textarea", { style:fieldStyle+" min-height:180px;" });
+      metinTa.value = page.metin || "";
+      field("Metin (paragrafları boş satırla ayır)", metinTa);
+      getters.push(function(d){ d.metin = metinTa.value; });
+    } else if (page.tip === "hazirlik"){
+      var soruTa = el("textarea", { style:fieldStyle+" min-height:80px;" });
+      soruTa.value = page.soru || "";
+      field("Soru", soruTa);
+      getters.push(function(d){ d.soru = soruTa.value; d.soru_tipi = page.soru_tipi || "acik"; });
+    } else if (page.tip === "kavram_haritasi"){
+      var yonergeTa = el("textarea", { style:fieldStyle+" min-height:70px;" });
+      yonergeTa.value = page.yonerge || "";
+      field("Yönerge", yonergeTa);
+      var kavramInp = el("input", { type:"text", style:fieldStyle });
+      kavramInp.value = page.kavram || "";
+      field("Anahtar Kavram", kavramInp);
+      var sayiInp = el("input", { type:"number", style:fieldStyle, min:"1", max:"10" });
+      sayiInp.value = page.kelime_sayisi || 5;
+      field("Kelime Sayısı", sayiInp);
+      var cumleInp2 = el("input", { type:"text", style:fieldStyle });
+      cumleInp2.value = page.cumle_istem || "İlgili Cümlem:";
+      field("Cümle İstem Metni", cumleInp2);
+      getters.push(function(d){
+        d.yonerge = yonergeTa.value; d.kavram = kavramInp.value;
+        d.kelime_sayisi = parseInt(sayiInp.value,10)||5; d.cumle_istem = cumleInp2.value;
+      });
+    } else if (page.tip === "cikis_karti"){
+      var ckYonergeTa = el("textarea", { style:fieldStyle+" min-height:60px;" });
+      ckYonergeTa.value = page.yonerge || "";
+      field("Yönerge", ckYonergeTa);
+      var maddeGetters = [];
+      (page.maddeler||[]).forEach(function(m, mi){
+        form.appendChild(el("div", { style:"font-weight:600; margin-top:10px;" }, ["Madde "+(mi+1)]));
+        var etiketInp = el("input", { type:"text", style:fieldStyle });
+        etiketInp.value = m.etiket || "";
+        field("Etiket (örn. 3 BİLGİ)", etiketInp);
+        var aciklamaTa = el("textarea", { style:fieldStyle+" min-height:60px;" });
+        aciklamaTa.value = m.aciklama || "";
+        field("Açıklama", aciklamaTa);
+        var adetInp = el("input", { type:"number", style:fieldStyle, min:"1", max:"10" });
+        adetInp.value = m.adet || 1;
+        field("Kaç madde yazılacak", adetInp);
+        maddeGetters.push(function(){ return { etiket:etiketInp.value, aciklama:aciklamaTa.value, adet:parseInt(adetInp.value,10)||1 }; });
+      });
+      getters.push(function(d){ d.yonerge = ckYonergeTa.value; d.maddeler = maddeGetters.map(function(g){ return g(); }); });
+    } else if (page.tip === "uygulama"){
+      var adInp = el("input", { type:"text", style:fieldStyle });
+      adInp.value = page.ad || "";
+      field("Uygulama Adı", adInp);
+      var sureInp = el("input", { type:"text", style:fieldStyle });
+      sureInp.value = page.sure || "";
+      field("Süre", sureInp);
+      var amacInp = el("input", { type:"text", style:fieldStyle });
+      amacInp.value = page.amac || "";
+      field("Amaç", amacInp);
+      var senaryoTa = el("textarea", { style:fieldStyle+" min-height:100px;" });
+      senaryoTa.value = page.senaryo || "";
+      field("Senaryo", senaryoTa);
+      var asamaGetters = [];
+      (page.asamalar||[]).forEach(function(asama, ai){
+        form.appendChild(el("div", { style:"font-weight:600; margin-top:12px; border-top:1px solid var(--rule); padding-top:8px;" }, ["Aşama "+(ai+1)]));
+        var aBaslikInp = el("input", { type:"text", style:fieldStyle });
+        aBaslikInp.value = asama.baslik || "";
+        field("Aşama Başlığı", aBaslikInp);
+        var aYonergeTa = el("textarea", { style:fieldStyle+" min-height:60px;" });
+        aYonergeTa.value = asama.yonerge || "";
+        field("Yönerge", aYonergeTa);
+        var aOnBilgiTa = el("textarea", { style:fieldStyle+" min-height:60px;" });
+        aOnBilgiTa.value = asama.on_bilgi || "";
+        field("Ön Bilgi (opsiyonel)", aOnBilgiTa);
+        var soruGetters = [];
+        (asama.sorular||[]).forEach(function(s, si){
+          var etiketInp2 = el("input", { type:"text", style:fieldStyle, placeholder:"Etiket (opsiyonel, örn. Girdi)" });
+          etiketInp2.value = s.etiket || "";
+          field("Soru "+(si+1)+" Etiketi", etiketInp2);
+          var soruTa2 = el("textarea", { style:fieldStyle+" min-height:60px;" });
+          soruTa2.value = s.soru || "";
+          field("Soru "+(si+1)+" Metni", soruTa2);
+          soruGetters.push(function(){ return { id:s.id||("q"+(si+1)), etiket:etiketInp2.value, soru:soruTa2.value, tip:"acik" }; });
+        });
+        asamaGetters.push(function(){ return { baslik:aBaslikInp.value, yonerge:aYonergeTa.value, on_bilgi:aOnBilgiTa.value, sorular:soruGetters.map(function(g){ return g(); }) }; });
+      });
+      getters.push(function(d){
+        d.ad = adInp.value; d.sure = sureInp.value; d.amac = amacInp.value; d.senaryo = senaryoTa.value;
+        d.asamalar = asamaGetters.map(function(g){ return g(); });
+      });
+    } else if (page.tip === "sira_sizde"){
+      var ssSenaryoTa = el("textarea", { style:fieldStyle+" min-height:100px;" });
+      ssSenaryoTa.value = page.senaryo || "";
+      field("Senaryo", ssSenaryoTa);
+      var gorevGetters = [];
+      (page.gorevler||[]).forEach(function(g, gi){
+        var gYonergeTa = el("textarea", { style:fieldStyle+" min-height:50px;" });
+        gYonergeTa.value = g.yonerge || "";
+        field("Görev "+(gi+1)+" Yönergesi", gYonergeTa);
+        var gAdetInp = el("input", { type:"number", style:fieldStyle, min:"1", max:"10" });
+        gAdetInp.value = g.madde_sayisi || 1;
+        field("Görev "+(gi+1)+" için kaç madde", gAdetInp);
+        gorevGetters.push(function(){ return { yonerge:gYonergeTa.value, madde_sayisi:parseInt(gAdetInp.value,10)||1 }; });
+      });
+      var notInp = el("input", { type:"text", style:fieldStyle });
+      notInp.value = page.not || "";
+      field("Not / Uyarı (opsiyonel)", notInp);
+      getters.push(function(d){
+        d.senaryo = ssSenaryoTa.value; d.gorevler = gorevGetters.map(function(g){ return g(); }); d.not = notInp.value;
+      });
+    } else if (page.tip === "ornek"){
+      var ornAdInp = el("input", { type:"text", style:fieldStyle });
+      ornAdInp.value = page.ad || "";
+      field("Örnek Adı", ornAdInp);
+      var ornSenaryoTa = el("textarea", { style:fieldStyle+" min-height:80px;" });
+      ornSenaryoTa.value = page.senaryo || "";
+      field("Senaryo", ornSenaryoTa);
+      var sozdeKodTa = el("textarea", { style:fieldStyle+" min-height:100px; font-family:monospace;" });
+      sozdeKodTa.value = (page.sozde_kod||[]).join("\n");
+      field("Sözde Kod (her satır ayrı adım)", sozdeKodTa);
+      var girdilerInp = el("input", { type:"text", style:fieldStyle });
+      girdilerInp.value = (page.elle_calistirma||{}).girdiler || "";
+      field("Örnek Girdiler", girdilerInp);
+      var ciktiInp = el("input", { type:"text", style:fieldStyle });
+      ciktiInp.value = (page.elle_calistirma||{}).beklenen_cikti || "";
+      field("Beklenen Çıktı", ciktiInp);
+      getters.push(function(d){
+        d.ad = ornAdInp.value; d.senaryo = ornSenaryoTa.value;
+        d.sozde_kod = sozdeKodTa.value.split("\n").filter(function(l){ return l.trim(); });
+        d.elle_calistirma = { girdiler:girdilerInp.value, beklenen_cikti:ciktiInp.value };
+      });
+    } else if (page.tip === "tablo"){
+      var basliklarInp = el("input", { type:"text", style:fieldStyle });
+      basliklarInp.value = (page.basliklar||[]).join(" | ");
+      field("Sütun Başlıkları (| ile ayır)", basliklarInp);
+      var satirlarTa = el("textarea", { style:fieldStyle+" min-height:120px;" });
+      satirlarTa.value = (page.satirlar||[]).map(function(r){ return r.join(" | "); }).join("\n");
+      field("Satırlar (her satır yeni bir satıra, hücreler | ile ayrılır)", satirlarTa);
+      getters.push(function(d){
+        d.basliklar = basliklarInp.value.split("|").map(function(s){ return s.trim(); }).filter(function(s){ return s; });
+        d.satirlar = satirlarTa.value.split("\n").filter(function(l){ return l.trim(); }).map(function(l){ return l.split("|").map(function(s){ return s.trim(); }); });
+      });
+    }
+
+    var row = el("div", { style:"display:flex; gap:8px; justify-content:flex-end; margin-top:10px;" });
+    row.appendChild(el("button", { class:"btn small", onclick:function(){ state.teacher.editingSayfa=null; render(); } }, ["Vazgeç"]));
+    row.appendChild(el("button", { class:"btn small primary", onclick:function(){
+      var draft = { tip: page.tip, baslik: baslikInp.value.trim() || undefined };
+      getters.forEach(function(g){ g(draft); });
+      updateSayfa(weekNo, page.id, draft).then(function(){ render(); });
+    } }, ["Kaydet"]));
+    form.appendChild(row);
+    return form;
+  }
+
   function renderSayfa(page, prog, week){
     var box = el("div", { class:"sayfa-box" });
     var existing = (prog.answers && prog.answers[page.id]) || {};
@@ -992,13 +1172,15 @@
     function paragraphs(text){
       return (text||"").split(/\n\n+/).map(function(p){ return el("p", { class:"body" }, [p]); });
     }
+    var wideInpStyle = "width:100%; box-sizing:border-box; padding:9px 11px; border:1px solid var(--rule); border-radius:7px; background:var(--paper); color:var(--ink); font:inherit;";
+    var wideTaStyle = wideInpStyle + " min-height:90px; resize:vertical; display:block;";
     if (page.baslik) box.appendChild(el("h3", {}, [page.baslik]));
 
     if (page.tip === "okuma" || page.tip === "kutu_okuma"){
       paragraphs(page.metin).forEach(function(p){ box.appendChild(p); });
     } else if (page.tip === "hazirlik"){
       box.appendChild(el("p", { class:"q" }, [page.soru]));
-      var ta = el("textarea", { placeholder:"cevabınızı buraya yazın..." });
+      var ta = el("textarea", { placeholder:"cevabınızı buraya yazın...", style:wideTaStyle });
       ta.value = existing.text || "";
       ta.addEventListener("blur", function(){ saveField("text", ta.value); });
       box.appendChild(ta);
@@ -1009,7 +1191,7 @@
       var wordsWrap = el("div", { style:"display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;" });
       for (var wi=0; wi<(page.kelime_sayisi||5); wi++){
         (function(i){
-          var inp = el("input", { type:"text", placeholder:(i+1)+". kelime" });
+          var inp = el("input", { type:"text", placeholder:(i+1)+". kelime", style:"flex:1 1 160px; min-width:120px; box-sizing:border-box; padding:9px 11px; border:1px solid var(--rule); border-radius:7px; background:var(--paper); color:var(--ink); font:inherit;" });
           inp.value = words[i] || "";
           inp.addEventListener("blur", function(){
             var vals = (existing.kelimeler||[]).slice();
@@ -1022,7 +1204,7 @@
       }
       box.appendChild(wordsWrap);
       box.appendChild(el("div", {}, [page.cumle_istem || "İlgili Cümlem:"]));
-      var cumleInp = el("textarea", { placeholder:"cümlenizi yazın..." });
+      var cumleInp = el("textarea", { placeholder:"cümlenizi yazın...", style:wideTaStyle });
       cumleInp.value = existing.cumle || "";
       cumleInp.addEventListener("blur", function(){ saveField("cumle", cumleInp.value); });
       box.appendChild(cumleInp);
@@ -1034,7 +1216,7 @@
         box.appendChild(el("div", { class:"body", style:"font-size:13px; color:var(--ink-muted);" }, [m.aciklama]));
         for (var k=0; k<(m.adet||1); k++){
           (function(mi,k){
-            var inp = el("input", { type:"text", placeholder:(k+1)+"." });
+            var inp = el("input", { type:"text", placeholder:(k+1)+".", style:wideInpStyle + " margin-bottom:6px;" });
             inp.value = ((maddeVals[mi]||[])[k]) || "";
             inp.addEventListener("blur", function(){
               var mv = Object.assign({}, existing.maddeler||{});
@@ -1058,7 +1240,7 @@
         if (asama.on_bilgi) paragraphs(asama.on_bilgi).forEach(function(p){ box.appendChild(p); });
         (asama.sorular||[]).forEach(function(s, si){
           box.appendChild(el("p", { class:"q" }, [(s.etiket?s.etiket+": ":"")+s.soru]));
-          var ta2 = el("textarea", { placeholder:"cevabınızı buraya yazın..." });
+          var ta2 = el("textarea", { placeholder:"cevabınızı buraya yazın...", style:wideTaStyle });
           ta2.value = ((asamaVals[ai]||{})[si]) || "";
           ta2.addEventListener("blur", function(ai,si,ta2){ return function(){
             var av = Object.assign({}, existing.asamalar||{});
@@ -1076,7 +1258,7 @@
         box.appendChild(el("p", { class:"q" }, [g.yonerge]));
         for (var gk=0; gk<(g.madde_sayisi||1); gk++){
           (function(gi,k){
-            var inp = el("input", { type:"text", placeholder:(k+1)+"." });
+            var inp = el("input", { type:"text", placeholder:(k+1)+".", style:wideInpStyle + " margin-bottom:6px;" });
             inp.value = ((gorevVals[gi]||[])[k]) || "";
             inp.addEventListener("blur", function(){
               var gv = Object.assign({}, existing.gorevler||{});
@@ -1437,16 +1619,31 @@
       if (item.type === "sayfa"){
         var sp = (week.sayfalar||[]).filter(function(x){ return x.id===item.id; })[0];
         if (!sp) return;
-        var scard = el("div", { class:"kq-card" });
         var tipEtiket = {
           okuma:"📖 Okuma", kutu_okuma:"📖 Okuma (kutu)", hazirlik:"✏️ Hazırlık Sorusu",
           kavram_haritasi:"🧠 Kavram Haritası", cikis_karti:"🎫 3-2-1 Çıkış Kartı",
           uygulama:"🛠️ Uygulama", sira_sizde:"✍️ Sıra Sizde", ornek:"💡 Örnek",
           tablo:"📊 Tablo"
         }[sp.tip] || sp.tip;
-        scard.appendChild(el("div", { class:"kq-kicker" }, [tipEtiket + (sp.baslik ? " — "+sp.baslik : "")]));
-        scard.appendChild(renderSayfa(sp, { pages:{}, answers:{} }, week));
-        inner.appendChild(scard);
+        if (state.teacher.editingSayfa === sp.id){
+          inner.appendChild(renderSayfaEditForm(weekNo, sp));
+        } else {
+          var scard = el("div", { class:"kq-card" });
+          scard.appendChild(el("div", { class:"kq-head" }, [
+            el("div", { style:"min-width:0; flex:1;" }, [
+              el("div", { class:"kq-kicker" }, [tipEtiket + (sp.baslik ? " — "+sp.baslik : "")]),
+              renderSayfa(sp, { pages:{}, answers:{} }, week)
+            ]),
+            el("div", { style:"display:flex; gap:6px; flex-shrink:0;" }, [
+              el("button", { class:"btn small", onclick:function(){ state.teacher.editingSayfa=sp.id; render(); } }, ["Düzenle"]),
+              el("button", { class:"btn small danger", onclick:function(){
+                if (!window.confirm("Bu sayfayı silmek istediğine emin misin? Bu işlem geri alınamaz.")) return;
+                deleteSayfa(weekNo, sp.id);
+              } }, ["Sil"])
+            ])
+          ]));
+          inner.appendChild(scard);
+        }
       } else if (item.type === "konu"){
         var t = konular.filter(function(x){ return x.id===item.id; })[0];
         if (!t) return;
