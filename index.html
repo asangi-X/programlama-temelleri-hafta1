@@ -498,35 +498,71 @@
     }
   }
 
+  // Başkalarının kaydı yüzünden ekran yenilenirken, o an yazılan kutucuk sıfırlanmasın.
+  function isTyping(){
+    var ae = document.activeElement;
+    if (!ae || !ae.tagName) return false;
+    var t = ae.tagName;
+    if (t !== "INPUT" && t !== "TEXTAREA" && t !== "SELECT") return false;
+    if (t === "INPUT" && /^(radio|checkbox|button|submit)$/i.test(ae.type||"")) return false;
+    var app = document.getElementById("app");
+    return !!(app && app.contains(ae));
+  }
+  var _pendingTimer = null;
+  function renderFromData(){
+    if (isTyping()){ state._renderPending = true; return; }
+    render();
+  }
+  document.addEventListener("focusout", function(){
+    if (_pendingTimer) clearTimeout(_pendingTimer);
+    _pendingTimer = setTimeout(function(){
+      if (state._renderPending && !isTyping()) render();
+    }, 1500);
+  });
+  // Sunucudan gelen ilerleme verisini birleştir: bizim daha yeni (henüz sunucuya
+  // ulaşmamış) kaydımızı eski sunucu kopyasıyla ezme.
+  function mergeProgress(remote){
+    var merged = Object.assign({}, remote);
+    var local = state.progress || {};
+    Object.keys(local).forEach(function(k){
+      var loc = local[k], rem = remote[k];
+      if (!loc) return;
+      if (!rem){ merged[k] = loc; return; }
+      if (loc.updated_at && rem.updated_at && String(loc.updated_at) > String(rem.updated_at)) merged[k] = loc;
+    });
+    return merged;
+  }
+
   function subscribeAll(){
     unsubs.forEach(function(u){ u(); });
     unsubs = [];
     unsubs.push(db.collection("haftalar").onSnapshot(function(qs){
       var m = {}; qs.docs.forEach(function(d){ m[d.data().hafta_no] = d.data(); });
-      state.weeks = m; render();
+      state.weeks = m; renderFromData();
     }));
     unsubs.push(db.collection("roster").onSnapshot(function(qs){
       var m = {}; qs.docs.forEach(function(d){ m[d.id] = d.data(); });
-      state.roster = m; render();
+      state.roster = m; renderFromData();
     }));
     unsubs.push(db.collection("siniflar").onSnapshot(function(qs){
       var m = {}; qs.docs.forEach(function(d){ m[d.id] = d.data(); });
-      state.siniflar = m; render();
+      state.siniflar = m; renderFromData();
     }));
     unsubs.push(db.collection("ogretmenler").onSnapshot(function(qs){
       var m = {}; qs.docs.forEach(function(d){ m[d.id] = d.data(); });
-      state.teachers = m; render();
+      state.teachers = m; renderFromData();
     }));
     unsubs.push(db.collection("progress").onSnapshot(function(qs){
       var m = {}; qs.docs.forEach(function(d){ m[d.id] = d.data(); });
       // Kendi yazdığımız kaydın sunucudan geri dönmesi ekranı boşuna yeniletmesin:
       // öğrenci bir sonraki kutucuğa yazmaya başlamışsa, yeniden çizim yazdıklarını siler.
+      m = mergeProgress(m);
       try { if (JSON.stringify(m) === JSON.stringify(state.progress)) return; } catch(e){}
-      state.progress = m; render();
+      state.progress = m; renderFromData();
     }));
     unsubs.push(db.collection("notes").onSnapshot(function(qs){
       var m = {}; qs.docs.forEach(function(d){ m[d.id] = d.data(); });
-      state.notes = m; render();
+      state.notes = m; renderFromData();
     }));
   }
   function stopSubs(){ unsubs.forEach(function(u){ u(); }); unsubs = []; }
@@ -729,6 +765,7 @@
     }
   }
   function render(){
+    state._renderPending = false;
     var root = document.getElementById("app");
     var scrollPos = captureScrollPositions();
     var focusInfo = captureFocusKey();
@@ -758,8 +795,12 @@
     var err = el("div", { class:"login-err" }, [state.loginErr||""]);
 
     if (state.loginTab === "student"){
-      var noInput = el("input", { type:"text", inputmode:"numeric", placeholder:"okul numaranız" });
-      var pwInput = el("input", { type:"password", placeholder:"••••" });
+      var noInput = el("input", { "data-focus-key":"login-no", type:"text", inputmode:"numeric", placeholder:"okul numaranız" });
+      noInput.value = (state.loginVals||{})["login-no"] || "";
+      noInput.addEventListener("input", function(){ state.loginVals = state.loginVals||{}; state.loginVals["login-no"] = noInput.value; });
+      var pwInput = el("input", { "data-focus-key":"login-pw", type:"password", placeholder:"••••" });
+      pwInput.value = (state.loginVals||{})["login-pw"] || "";
+      pwInput.addEventListener("input", function(){ state.loginVals = state.loginVals||{}; state.loginVals["login-pw"] = pwInput.value; });
       card.appendChild(el("div", { class:"field" }, [ el("label",{},["Okul Numarası"]), noInput ]));
       card.appendChild(el("div", { class:"field" }, [ el("label",{},["Şifre"]), pwInput ]));
       card.appendChild(err);
@@ -767,7 +808,7 @@
         var no = noInput.value.trim(); var pw = pwInput.value;
         var rec = state.roster[no];
         if (!rec || rec.sifre !== pw){ state.loginErr="Okul numarası veya şifre hatalı."; render(); return; }
-        state.currentStudent = no; state.view = "student"; state.loginErr = "";
+        state.currentStudent = no; state.view = "student"; state.loginErr = ""; state.loginVals = {};
         var studentProgMap = {};
         sortedWeekNos().forEach(function(wk){ studentProgMap[wk] = state.progress[progKey(no, wk)]; });
         var nos = sortedWeekNos();
@@ -784,8 +825,12 @@
         render();
       } }, ["Giriş Yap"]));
     } else {
-      var uInput = el("input", { type:"text", placeholder:"kullanıcı adı" });
-      var pwInput2 = el("input", { type:"password", placeholder:"şifre" });
+      var uInput = el("input", { "data-focus-key":"login-u", type:"text", placeholder:"kullanıcı adı" });
+      uInput.value = (state.loginVals||{})["login-u"] || "";
+      uInput.addEventListener("input", function(){ state.loginVals = state.loginVals||{}; state.loginVals["login-u"] = uInput.value; });
+      var pwInput2 = el("input", { "data-focus-key":"login-pw2", type:"password", placeholder:"şifre" });
+      pwInput2.value = (state.loginVals||{})["login-pw2"] || "";
+      pwInput2.addEventListener("input", function(){ state.loginVals = state.loginVals||{}; state.loginVals["login-pw2"] = pwInput2.value; });
       card.appendChild(el("div", { class:"field" }, [ el("label",{},["Kullanıcı Adı"]), uInput ]));
       card.appendChild(el("div", { class:"field" }, [ el("label",{},["Şifre"]), pwInput2 ]));
       card.appendChild(err);
@@ -796,7 +841,7 @@
         } else if (state.teachers[u] && state.teachers[u].sifre === pw){
           state.role = "teacher"; state.staffUser = u;
         } else { state.loginErr = "Kullanıcı adı veya şifre hatalı."; render(); return; }
-        state.isStaff = true; state.view = "teacher"; state.loginErr = "";
+        state.isStaff = true; state.view = "teacher"; state.loginErr = ""; state.loginVals = {};
         var nos = sortedWeekNos();
         state.teacher.selectedWeek = nos[0] || null;
         render();
@@ -1801,15 +1846,23 @@
       }
       tw.appendChild(classBar);
 
+      var pwToggleRow = el("div", { style:"display:flex; justify-content:flex-end; margin:4px 0 8px;" }, [
+        el("button", { class:"btn small", onclick:function(){ state.teacher.showPw = !state.teacher.showPw; render(); } },
+          [state.teacher.showPw ? "🙈 Şifreleri Gizle" : "👁 Şifreleri Göster"])
+      ]);
+      tw.appendChild(pwToggleRow);
+      var showPw = !!state.teacher.showPw;
       var table = el("table", { class:"roster" });
-      table.appendChild(el("thead", {}, [ el("tr", {}, [ el("th",{},["Öğrenci"]), el("th",{},["Okul No"]), el("th",{},["Sınıf"]), el("th",{},["Okuma"]), el("th",{},["Kapalı Soru"]), el("th",{},["Açık Soru"]), el("th",{},["Durum"]), el("th",{},["İnceleme"]) ]) ]));
+      var headCells = [ el("th",{},["Öğrenci"]), el("th",{},["Okul No"]) ];
+      if (showPw) headCells.push(el("th",{},["Şifre"]));
+      table.appendChild(el("thead", {}, [ el("tr", {}, headCells.concat([ el("th",{},["Sınıf"]), el("th",{},["Okuma"]), el("th",{},["Kapalı Soru"]), el("th",{},["Açık Soru"]), el("th",{},["Durum"]), el("th",{},["İnceleme"]) ])) ]));
       var tbody = el("tbody", {});
       var ids = Object.keys(state.roster).filter(function(no){
         if (state.teacher.classFilter === "all") return true;
         return state.roster[no].sinifId === state.teacher.classFilter;
       });
       if (ids.length === 0){
-        tbody.appendChild(el("tr", {}, [ el("td", { colspan:"8", style:"color:var(--ink-muted);" }, ["Bu filtrede öğrenci yok."]) ]));
+        tbody.appendChild(el("tr", {}, [ el("td", { colspan: showPw ? "9" : "8", style:"color:var(--ink-muted);" }, ["Bu filtrede öğrenci yok."]) ]));
       }
       ids.forEach(function(no){
         var rec = state.roster[no];
@@ -1817,20 +1870,22 @@
         var status = computeStatus(prog, week);
         var meta = statusMeta(status);
         var konular = week.konular || [];
-        var pctRead = konular.length ? Math.round((konular.filter(function(t){ return prog.pages && prog.pages[t.id]; }).length / konular.length)*100) : 0;
+        var okunacak = (week.sayfalar && week.sayfalar.length) ? week.sayfalar : konular;
+        var pctRead = okunacak.length ? Math.round((okunacak.filter(function(t){ return prog.pages && prog.pages[t.id]; }).length / okunacak.length)*100) : 0;
         var sorular = week.sorular || {};
         var openIds = Object.keys(sorular).filter(function(qid){ return !sorular[qid].closed; });
         var openDone = openIds.filter(function(qid){ return prog.answers && prog.answers[qid] && prog.answers[qid].text; }).length;
         var needsReview = hasUnreviewedOpen(prog, week);
         var sinifAdi = (rec.sinifId && state.siniflar[rec.sinifId]) ? state.siniflar[rec.sinifId].ad : "—";
-        tbody.appendChild(el("tr", { class:"clickable"+(needsReview?" needs-review":""), onclick:function(){ state.drawerStudent=no; state.teacher.editingStudentPw=null; render(); } }, [
-          el("td", {}, [rec.ad || "—"]), el("td", { class:"mono" }, [no]),
+        tbody.appendChild(el("tr", { class:"clickable"+(needsReview?" needs-review":""), onclick:function(){ state.drawerStudent=no; state.teacher.editingStudentPw=null; state.teacher.drawerPwVisible=null; render(); } }, [
+          el("td", {}, [rec.ad || "—"]), el("td", { class:"mono" }, [no])
+        ].concat(showPw ? [ el("td", { class:"mono" }, [rec.sifre || "—"]) ] : []).concat([
           el("td", {}, [sinifAdi]),
           el("td", {}, ["%"+pctRead]), el("td", {}, ["%"+Math.round(closedScore(prog, week)*100)]),
           el("td", {}, [openDone+"/"+openIds.length]),
           el("td", {}, [ el("span", { class:"status-pill "+meta.cls }, [meta.icon+" "+meta.label]) ]),
           el("td", {}, [ needsReview ? el("span", { class:"status-pill late" }, ["🔎 İncele"]) : el("span", { style:"color:var(--ink-muted);" }, ["—"]) ])
-        ]));
+        ])));
       });
       table.appendChild(tbody);
       var tableScroll = el("div", { style:"overflow-x:auto; max-width:100%;" }, [table]);
@@ -2123,7 +2178,13 @@
     drawer.appendChild(el("button", { class:"btn small ghost drawer-close", onclick:function(){ state.drawerStudent=null; render(); } }, ["✕ Kapat"]));
     drawer.appendChild(el("h2", {}, [rec.ad || no]));
     drawer.appendChild(el("div", { class:"sub" }, ["Okul No: "+no+" · "+(week.baslik||(weekNo+". Hafta"))]));
-    var pwRow = el("div", { style:"display:flex; align-items:center; gap:8px; margin:6px 0 14px;" }, [
+    var pwVisible = state.teacher.drawerPwVisible === no;
+    var pwRow = el("div", { style:"display:flex; align-items:center; gap:8px; margin:6px 0 14px; flex-wrap:wrap;" }, [
+      el("span", { style:"font-size:13.5px;" }, ["Şifre: "]),
+      el("span", { class:"mono", style:"font-size:14px; font-weight:600; min-width:60px;" }, [pwVisible ? (rec.sifre || "—") : "••••"]),
+      el("button", { class:"btn small ghost", onclick:function(){
+        state.teacher.drawerPwVisible = pwVisible ? null : no; render();
+      } }, [pwVisible ? "🙈 Gizle" : "👁 Göster"]),
       el("button", { class:"btn small ghost", onclick:function(){
         state.teacher.editingStudentPw = (state.teacher.editingStudentPw===no) ? null : no;
         render();
