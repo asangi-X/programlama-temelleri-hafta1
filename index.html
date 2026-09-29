@@ -1063,6 +1063,14 @@
     nav.appendChild(backBtn);
     if (nextLabel){
       nav.appendChild(el("button", { class:"btn primary", onclick:function(){
+        if(item.type === "sayfa"){
+          var gatePage=(week.sayfalar||[]).filter(function(x){return x.id===item.id;})[0];
+          if(gatePage && gatePage.tip==="mini_ders" && (gatePage.kartlar||[]).length){
+            var ga=((prog.answers&&prog.answers[item.id])||{}).eslestirme||{};
+            var allOk=gatePage.kartlar.every(function(k,i){return ga[i]===k.dogru;});
+            if(!allOk){ toast("Önce bu ekrandaki tüm örnekleri doğru tamamla."); return; }
+          }
+        }
         if (item.type === "konu" || item.type === "sayfa") savePage(state.currentStudent, state.currentWeek, item.id, true);
         if (!isLast) state.flowIndex = idx+1;
         render();
@@ -1152,6 +1160,27 @@
       [["S1 = ?",page.deneme.s1,"d1"],["S2 = ?",page.deneme.s2,"d2"],["Toplam = S1 + S2 → Toplam = ?",page.deneme.toplam,"d3"],["Ekranda ne görünür?",page.deneme.toplam,"d4"]].forEach(function(it){var w=el("div",{style:"margin:8px 0;"});w.appendChild(el("label",{style:"display:block;font-weight:650;margin-bottom:4px;"},[it[0]]));var inp=el("input",{type:"text",style:wideInpStyle,placeholder:"cevabın"});inp.value=existing[it[2]]||"";inp.addEventListener("blur",function(){saveField(it[2],inp.value);});w.appendChild(inp);box.appendChild(w);});
       box.appendChild(el("div",{style:"background:#f6f3ea;border-radius:9px;padding:11px;margin-top:14px;"},["Dry run: Programı gerçekten çalıştırmadan, algoritmanın adımlarını sırayla takip edip değişkenlerin aldığı değerleri bulmaktır. Az önce yaptığın şey buydu."]));
       box.appendChild(el("p",{class:"q",style:"margin-top:14px;"},["Şimdi aynı algoritmayı S1 = "+page.dryrun.s1+" ve S2 = "+page.dryrun.s2+" için elle çalıştır. Toplam kaç olur?"]));var di=el("input",{type:"text",style:wideInpStyle,placeholder:"Toplam"});di.value=existing.dryrun||"";di.addEventListener("blur",function(){saveField("dryrun",di.value);});box.appendChild(di);
+    } else if (page.tip === "mini_ders"){
+      if(page.metin) paragraphs(page.metin).forEach(function(p){ box.appendChild(p); });
+      var mdAns = existing.eslestirme || {};
+      (page.kartlar||[]).forEach(function(k,ki){
+        var row=el("div",{style:"border:1px solid var(--rule);border-radius:9px;padding:12px;margin:10px 0;"});
+        row.appendChild(el("div",{style:"font-weight:700;margin-bottom:8px;"},[k.metin]));
+        ["Girdi","İşlem","Çıktı"].forEach(function(opt){
+          var chosen=mdAns[ki]===opt;
+          row.appendChild(el("button",{class:"btn small"+(chosen?" primary":""),style:"margin:2px 6px 2px 0;",onclick:function(){
+            var vals=Object.assign({},((prog.answers&&prog.answers[page.id])||{}).eslestirme||{});
+            vals[ki]=opt; saveField("eslestirme",vals); setTimeout(render,0);
+          }},[opt]));
+        });
+        if(mdAns[ki]){
+          var ok=mdAns[ki]===k.dogru;
+          row.appendChild(el("div",{style:"margin-top:8px;font-size:13px;font-weight:650;color:"+(ok?"var(--ok)":"var(--late)")+";"},[
+            ok?"✓ Doğru":"Tekrar düşün: bilgisayar burada bir bilgi mi alıyor, bilgi üzerinde bir şey mi yapıyor, yoksa bir sonuç mu veriyor?"
+          ]));
+        }
+        box.appendChild(row);
+      });
     } else if (page.tip === "hazirlik"){
       var soruTa = el("textarea", { style:fieldStyle+" min-height:80px;" });
       soruTa.value = page.soru || "";
