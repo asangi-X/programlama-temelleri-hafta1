@@ -1109,6 +1109,49 @@
       metinTa.value = page.metin || "";
       field("Metin (paragrafları boş satırla ayır)", metinTa);
       getters.push(function(d){ d.metin = metinTa.value; });
+    } else if (page.tip === "mini_ders"){
+      if(page.metin) paragraphs(page.metin).forEach(function(p){ box.appendChild(p); });
+      var mdAns = existing.eslestirme || {};
+      (page.kartlar||[]).forEach(function(k,ki){
+        var row=el("div",{style:"border:1px solid var(--rule);border-radius:9px;padding:10px;margin:8px 0;"});
+        row.appendChild(el("div",{style:"font-weight:650;margin-bottom:7px;"},[k.metin]));
+        ["Girdi","İşlem","Çıktı"].forEach(function(o){
+          var b=el("button",{class:"btn small",style:"margin:2px 5px 2px 0;",onclick:function(){
+            var vals=Object.assign({}, existing.eslestirme||{}); vals[ki]=o; saveField("eslestirme",vals); render();
+          }},[o]); row.appendChild(b);
+        });
+        if(mdAns[ki]) row.appendChild(el("div",{style:"margin-top:6px;font-size:13px;color:"+(mdAns[ki]===k.dogru?"var(--ok)":"var(--late)")+";"},[mdAns[ki]===k.dogru?"✓ Doğru":"Tekrar düşün: bilgisayar bunu alıyor mu, yapıyor mu, yoksa sonuç olarak veriyor mu?"]));
+        box.appendChild(row);
+      });
+    } else if (page.tip === "algoritma_pratik"){
+      box.appendChild(el("div",{style:"background:#f6f3ea;border:1px solid var(--rule);border-radius:9px;padding:11px;margin-bottom:12px;"},[page.tanim]));
+      var ap=existing.cevaplar||{};
+      (page.sorular||[]).forEach(function(q,qi){
+        var qbox=el("div",{style:"border-top:1px solid var(--rule);padding:12px 0;"}); qbox.appendChild(el("div",{class:"q"},[q.metin]));
+        q.secenekler.forEach(function(o,oi){ qbox.appendChild(el("button",{class:"btn small",style:"margin:4px 6px 2px 0;",onclick:function(){var v=Object.assign({},existing.cevaplar||{});v[qi]=oi;saveField("cevaplar",v);render();}},[o])); });
+        if(ap[qi]!==undefined) qbox.appendChild(el("div",{style:"margin-top:6px;font-size:13px;"},[ap[qi]===q.dogru?"✓ Doğru":("Henüz değil. İpucu: "+q.ipucu)])); box.appendChild(qbox);
+      });
+    } else if (page.tip === "gic_pratik"){
+      if(page.aciklama) box.appendChild(el("p",{class:"body"},[page.aciklama]));
+      var gi=Number(existing.index||0); if(gi>=(page.kartlar||[]).length) gi=(page.kartlar||[]).length;
+      if(gi<(page.kartlar||[]).length){
+        var kart=page.kartlar[gi]; box.appendChild(el("div",{style:"font-size:19px;font-weight:750;padding:18px 12px;text-align:center;background:#f6f3ea;border-radius:10px;margin:12px 0;"},[kart.metin]));
+        ["Girdi","İşlem","Çıktı"].forEach(function(o){box.appendChild(el("button",{class:"btn primary",style:"margin:4px 6px 4px 0;",onclick:function(){
+          if(o===kart.dogru){ saveField("index",gi+1); setTimeout(render,0); }
+          else { var f=document.getElementById("gicfb"); if(f) f.textContent="Tekrar düşün: bilgisayar bir veri mi alıyor, veri üzerinde bir şey mi yapıyor, yoksa bir sonuç mu veriyor?"; }
+        }},[o]));});
+        box.appendChild(el("div",{id:"gicfb",style:"margin-top:9px;font-size:13px;color:var(--late);"},[""]));
+        box.appendChild(el("div",{style:"margin-top:10px;font-size:12px;color:var(--ink-muted);"},[(gi+1)+" / "+page.kartlar.length]));
+      } else box.appendChild(el("div",{style:"padding:14px;background:#eef7ee;border-radius:9px;font-weight:700;"},["✓ Hızlı tur tamamlandı."]));
+    } else if (page.tip === "ilk_sozde_kod"){
+      if(page.aciklama) box.appendChild(el("p",{class:"body",style:"font-weight:650;"},[page.aciklama]));
+      var gt=el("table",{style:"width:100%;border-collapse:collapse;margin:10px 0;"}); var gr=el("tr",{});
+      ["Girdi","İşlem","Çıktı"].forEach(function(h){gr.appendChild(el("th",{style:"border:1px solid #ddd;padding:7px;"},[h]));});gt.appendChild(gr);var gv=el("tr",{});["Girdi","İşlem","Çıktı"].forEach(function(h){gv.appendChild(el("td",{style:"border:1px solid #ddd;padding:7px;text-align:center;"},[page.gic[h]]));});gt.appendChild(gv);box.appendChild(gt);
+      (page.adimlar||[]).forEach(function(a,i){var d=el("div",{style:"border-left:4px solid #8b7a55;padding:8px 12px;margin:12px 0;background:#faf8f2;"});d.appendChild(el("div",{style:"font-weight:700;"},[(i+1)+". "+a.kod]));d.appendChild(el("p",{class:"body"},[a.metin]));box.appendChild(d);});
+      box.appendChild(el("h4",{},["Şimdi bilgisayar ol"])); box.appendChild(el("p",{class:"body"},["Kullanıcı ilk sayı olarak "+page.deneme.s1+", ikinci sayı olarak "+page.deneme.s2+" girdi. Bilgisayar komutları sırayla uygulasın."]));
+      [["S1 = ?",page.deneme.s1,"d1"],["S2 = ?",page.deneme.s2,"d2"],["Toplam = S1 + S2 → Toplam = ?",page.deneme.toplam,"d3"],["Ekranda ne görünür?",page.deneme.toplam,"d4"]].forEach(function(it){var w=el("div",{style:"margin:8px 0;"});w.appendChild(el("label",{style:"display:block;font-weight:650;margin-bottom:4px;"},[it[0]]));var inp=el("input",{type:"text",style:wideInpStyle,placeholder:"cevabın"});inp.value=existing[it[2]]||"";inp.addEventListener("blur",function(){saveField(it[2],inp.value);});w.appendChild(inp);box.appendChild(w);});
+      box.appendChild(el("div",{style:"background:#f6f3ea;border-radius:9px;padding:11px;margin-top:14px;"},["Dry run: Programı gerçekten çalıştırmadan, algoritmanın adımlarını sırayla takip edip değişkenlerin aldığı değerleri bulmaktır. Az önce yaptığın şey buydu."]));
+      box.appendChild(el("p",{class:"q",style:"margin-top:14px;"},["Şimdi aynı algoritmayı S1 = "+page.dryrun.s1+" ve S2 = "+page.dryrun.s2+" için elle çalıştır. Toplam kaç olur?"]));var di=el("input",{type:"text",style:wideInpStyle,placeholder:"Toplam"});di.value=existing.dryrun||"";di.addEventListener("blur",function(){saveField("dryrun",di.value);});box.appendChild(di);
     } else if (page.tip === "hazirlik"){
       var soruTa = el("textarea", { style:fieldStyle+" min-height:80px;" });
       soruTa.value = page.soru || "";
@@ -1281,6 +1324,13 @@
       box.appendChild(ta);
     } else if (page.tip === "kavram_haritasi"){
       if (page.yonerge) box.appendChild(el("p", { class:"body" }, [page.yonerge]));
+      if (page.ornek_kelimeler){
+        var ex = el("div", { style:"background:#f6f3ea;border:1px solid var(--rule);border-radius:9px;padding:10px 12px;margin:10px 0;" });
+        ex.appendChild(el("div", { style:"font-weight:700;margin-bottom:5px;" }, ["Örnek"]));
+        ex.appendChild(el("div", { class:"body" }, [page.ornek_kelimeler.join(" · ")]));
+        if(page.ornek_cumle) ex.appendChild(el("div", { class:"body", style:"margin-top:5px;" }, [page.ornek_cumle]));
+        box.appendChild(ex);
+      }
       box.appendChild(el("div", { style:"font-weight:700; margin:8px 0;" }, ["Anahtar Kavram: "+page.kavram]));
       var words = existing.kelimeler || [];
       var wordsWrap = el("div", { style:"display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;" });
@@ -1407,6 +1457,7 @@
     } else if (page.metin){
       paragraphs(page.metin).forEach(function(p){ box.appendChild(p); });
     }
+    if(page.ek_not){ box.appendChild(el("div",{style:"margin-top:12px;background:#f6f3ea;border:1px solid var(--rule);border-radius:9px;padding:11px;"},[page.ek_not])); }
     return box;
   }
 
