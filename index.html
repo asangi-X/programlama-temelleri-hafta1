@@ -1345,6 +1345,55 @@
 
     if (page.tip === "okuma" || page.tip === "kutu_okuma"){
       paragraphs(page.metin).forEach(function(p){ box.appendChild(p); });
+    } else if (page.tip === "mini_ders"){
+      if(page.metin) paragraphs(page.metin).forEach(function(p){ box.appendChild(p); });
+      var mdAns = existing.eslestirme || {};
+      (page.kartlar||[]).forEach(function(k,ki){
+        var row=el("div",{style:"border:1px solid var(--rule);border-radius:9px;padding:12px;margin:10px 0;"});
+        row.appendChild(el("div",{style:"font-weight:700;margin-bottom:8px;"},[k.metin]));
+        ["Girdi","İşlem","Çıktı"].forEach(function(opt){
+          var chosen=mdAns[ki]===opt;
+          row.appendChild(el("button",{class:"btn small"+(chosen?" primary":""),style:"margin:2px 6px 2px 0;",onclick:function(){
+            var vals=Object.assign({},((state.progress[progKey(state.currentStudent,state.currentWeek)]||{}).answers||{})[page.id]||{}).eslestirme||{};
+            vals[ki]=opt; saveField("eslestirme",vals); setTimeout(render,0);
+          }},[opt]));
+        });
+        if(mdAns[ki]){
+          var ok=mdAns[ki]===k.dogru;
+          row.appendChild(el("div",{style:"margin-top:8px;font-size:13px;font-weight:650;color:"+(ok?"var(--ok)":"var(--late)")+";"},[ok?"✓ Doğru":"Tekrar düşün: bilgisayar burada bir bilgi mi alıyor, bilgi üzerinde bir şey mi yapıyor, yoksa bir sonuç mu veriyor?"]));
+        }
+        box.appendChild(row);
+      });
+    } else if (page.tip === "algoritma_pratik"){
+      box.appendChild(el("div",{style:"background:#f6f3ea;border:1px solid var(--rule);border-radius:9px;padding:11px;margin-bottom:12px;"},[page.tanim]));
+      var ap=existing.cevaplar||{};
+      (page.sorular||[]).forEach(function(q,qi){
+        var qbox=el("div",{style:"border-top:1px solid var(--rule);padding:12px 0;"});
+        qbox.appendChild(el("div",{class:"q"},[q.metin]));
+        q.secenekler.forEach(function(opt,oi){qbox.appendChild(el("button",{class:"btn small",style:"margin:4px 6px 2px 0;",onclick:function(){var v=Object.assign({},((state.progress[progKey(state.currentStudent,state.currentWeek)]||{}).answers||{})[page.id]||{}).cevaplar||{});v[qi]=oi;saveField("cevaplar",v);setTimeout(render,0);}},[opt]));});
+        if(ap[qi]!==undefined) qbox.appendChild(el("div",{style:"margin-top:6px;font-size:13px;"},[ap[qi]===q.dogru?"✓ Doğru":("Henüz değil. İpucu: "+q.ipucu)]));
+        box.appendChild(qbox);
+      });
+    } else if (page.tip === "gic_pratik"){
+      if(page.aciklama) box.appendChild(el("p",{class:"body"},[page.aciklama]));
+      var gi=Number(existing.index||0), cards=page.kartlar||[]; if(gi>cards.length) gi=cards.length;
+      if(gi<cards.length){
+        var kart=cards[gi];
+        box.appendChild(el("div",{style:"font-size:19px;font-weight:750;padding:18px 12px;text-align:center;background:#f6f3ea;border-radius:10px;margin:12px 0;"},[kart.metin]));
+        ["Girdi","İşlem","Çıktı"].forEach(function(opt){box.appendChild(el("button",{class:"btn primary",style:"margin:4px 6px 4px 0;",onclick:function(){if(opt===kart.dogru){saveField("index",gi+1);setTimeout(render,0);}else{var fb=document.getElementById("gicfb");if(fb)fb.textContent="Tekrar düşün: bilgisayar bir veri mi alıyor, veri üzerinde bir şey mi yapıyor, yoksa bir sonuç mu veriyor?";}}},[opt]));});
+        box.appendChild(el("div",{id:"gicfb",style:"margin-top:9px;font-size:13px;color:var(--late);"},[""]));
+        box.appendChild(el("div",{style:"margin-top:10px;font-size:12px;color:var(--ink-muted);"},[(gi+1)+" / "+cards.length]));
+      }else box.appendChild(el("div",{style:"padding:14px;background:#eef7ee;border-radius:9px;font-weight:700;"},["✓ Hızlı tur tamamlandı."]));
+    } else if (page.tip === "ilk_sozde_kod"){
+      if(page.aciklama) box.appendChild(el("p",{class:"body",style:"font-weight:650;"},[page.aciklama]));
+      var gt=el("table",{style:"width:100%;border-collapse:collapse;margin:10px 0;"}),hr=el("tr",{});
+      ["Girdi","İşlem","Çıktı"].forEach(function(h){hr.appendChild(el("th",{style:"border:1px solid #ddd;padding:7px;"},[h]));});gt.appendChild(hr);
+      var vr=el("tr",{});["Girdi","İşlem","Çıktı"].forEach(function(h){vr.appendChild(el("td",{style:"border:1px solid #ddd;padding:7px;text-align:center;"},[page.gic[h]]));});gt.appendChild(vr);box.appendChild(gt);
+      (page.adimlar||[]).forEach(function(a,i){var d=el("div",{style:"border-left:4px solid #8b7a55;padding:8px 12px;margin:12px 0;background:#faf8f2;"});d.appendChild(el("div",{style:"font-weight:700;"},[(i+1)+". "+a.kod]));d.appendChild(el("p",{class:"body"},[a.metin]));box.appendChild(d);});
+      box.appendChild(el("h4",{},["Şimdi bilgisayar ol"]));
+      box.appendChild(el("p",{class:"body"},["Kullanıcı ilk sayı olarak "+page.deneme.s1+", ikinci sayı olarak "+page.deneme.s2+" girdi. S1, S2 ve Toplam değerlerini sırayla takip et."]));
+      box.appendChild(el("div",{style:"background:#f6f3ea;border-radius:9px;padding:11px;"},["S1 = "+page.deneme.s1+" → S2 = "+page.deneme.s2+" → Toplam = "+page.deneme.toplam+" → Ekran: "+page.deneme.toplam]));
+      box.appendChild(el("p",{class:"body",style:"margin-top:12px;"},["Az önce yaptığımız şeyi her adımda değişkenlerin değerlerini yazarak tablo hâlinde takip edeceğiz."]));
     } else if (page.tip === "hazirlik"){
       box.appendChild(el("p", { class:"q" }, [page.soru]));
       var ta = el("textarea", { placeholder:"cevabınızı buraya yazın...", style:wideTaStyle });
