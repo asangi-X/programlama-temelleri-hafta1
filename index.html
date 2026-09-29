@@ -1345,6 +1345,26 @@
 
     if (page.tip === "okuma" || page.tip === "kutu_okuma"){
       paragraphs(page.metin).forEach(function(p){ box.appendChild(p); });
+    } else if (page.tip === "mini_ders"){
+      if (page.metin) paragraphs(page.metin).forEach(function(p){ box.appendChild(p); });
+      var mdAns = existing.eslestirme || {};
+      (page.kartlar || []).forEach(function(k, ki){
+        var row = el("div", { style:"border:1px solid var(--rule);border-radius:9px;padding:12px;margin:10px 0;" });
+        row.appendChild(el("div", { style:"font-weight:700;margin-bottom:8px;" }, [k.metin]));
+        ["Girdi","İşlem","Çıktı"].forEach(function(opt){
+          row.appendChild(el("button", { class:"btn small", style:"margin:2px 6px 2px 0;", onclick:function(){
+            var vals = Object.assign({}, existing.eslestirme || {});
+            vals[ki] = opt; saveField("eslestirme", vals); existing.eslestirme = vals; render();
+          } }, [opt]));
+        });
+        if (mdAns[ki]){
+          var ok = mdAns[ki] === k.dogru;
+          row.appendChild(el("div", { style:"margin-top:8px;font-size:13px;font-weight:650;color:"+(ok?"var(--ok)":"var(--late)")+";" }, [
+            ok ? "✓ Doğru" : "Tekrar düşün: bilgisayar burada bir bilgi mi alıyor, bilgi üzerinde bir şey mi yapıyor, yoksa bir sonuç mu veriyor?"
+          ]));
+        }
+        box.appendChild(row);
+      });
     } else if (page.tip === "hazirlik"){
       box.appendChild(el("p", { class:"q" }, [page.soru]));
       var ta = el("textarea", { placeholder:"cevabınızı buraya yazın...", style:wideTaStyle });
